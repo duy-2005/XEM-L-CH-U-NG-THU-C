@@ -246,20 +246,41 @@ async def trigger_reminders(body: TriggerReminderReq, _: CurrentUser = Depends(r
     return res
 
 
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_VALID_SLOTS = frozenset({"sang", "trua", "chieu", "toi", "truoc_ngu"})
+
+
 @app.post("/api/cron/reminders")
+@limiter.limit("10/minute")
 async def cron_reminders(request: Request, slot: str | None = None, force: bool = False):
     s = get_settings()
-    if s.cron_secret:
-        auth_hdr = request.headers.get("X-Cron-Secret", "")
-        if auth_hdr != s.cron_secret:
-            raise HTTPException(401, "Sai hoặc thiếu X-Cron-Secret")
+    if not s.cron_secret:
+        raise HTTPException(403, "CRON_SECRET chưa được cấu hình trên máy chủ")
+    auth_hdr = request.headers.get("X-Cron-Secret", "")
+    import hmac
+    if not hmac.compare_digest(auth_hdr, s.cron_secret):
+        raise HTTPException(401, "Sai hoặc thiếu X-Cron-Secret")
     res = await notifier.check_and_send_reminders(target_slot=slot, force=force)
     return res
 
 
 @app.get("/api/confirm-dose", response_class=HTMLResponse)
-async def confirm_dose_from_email(p: str, rx: str, d: str, s: str, sig: str):
-    # Xác thực token HMAC
+@limiter.limit("30/minute")
+async def confirm_dose_from_email(request: Request, p: str, rx: str, d: str, s: str, sig: str):
+    # 1. Kiểm tra định dạng đầu vào chặt chẽ (chống DoS / tham số độc hại)
+    if not (_UUID.match(p) and _UUID.match(rx) and _DATE_RE.match(d) and s in _VALID_SLOTS and len(sig) == 24):
+        return HTMLResponse(
+            """
+            <!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Liên kết không hợp lệ</title>
+            <style>body{font-family:system-ui,sans-serif;background:#fff1f2;color:#9f1239;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;}
+            .card{background:#fff;border-radius:20px;padding:32px;max-width:440px;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.08);}</style>
+            </head><body><div class="card"><h2>⚠️ Tham số không đúng định dạng</h2><p>Đường dẫn xác nhận có tham số không hợp lệ.</p></div></body></html>
+            """,
+            status_code=400,
+        )
+
+    # 2. Xác thực token chữ ký điện tử HMAC
     if not notifier.verify_confirm_token(p, rx, d, s, sig):
         return HTMLResponse(
             """
