@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" data-font-size="normal">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -10,42 +10,68 @@
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="ĐTĐ Thuốc">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="text-slate-800">
-  <div id="toast" role="status" aria-live="polite" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden-view max-w-[90vw] px-4 py-3 rounded-xl text-white font-semibold shadow-lg"></div>
+  <!-- Canvas pháo hoa chúc mừng khi uống đủ 100% thuốc -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- Thông báo Toast -->
+  <div id="toast" role="status" aria-live="polite" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden-view max-w-[90vw] px-5 py-3.5 rounded-2xl text-white font-semibold shadow-2xl backdrop-blur-md"></div>
 
   <!-- ĐANG TẢI -->
-  <div id="view-loading" class="min-h-screen flex items-center justify-center text-teal-700 font-semibold">Đang tải…</div>
+  <div id="view-loading" class="min-h-screen flex flex-col items-center justify-center text-teal-700 font-semibold gap-3">
+    <div class="w-10 h-10 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin"></div>
+    <p>Đang tải ứng dụng…</p>
+  </div>
 
   <!-- ĐĂNG NHẬP -->
-  <main id="view-login" class="hidden-view min-h-screen flex flex-col justify-center px-5 py-10 max-w-md mx-auto">
-    <div class="text-center mb-8 fade-in">
-      <img src="/icons/icon-192.png" alt="" width="84" height="84" class="mx-auto rounded-3xl shadow-lg mb-4">
-      <h1 class="text-2xl font-extrabold text-teal-800">Tuân thủ thuốc đái tháo đường</h1>
-      <p class="text-slate-500 mt-1">Đăng nhập bằng mã bệnh nhân do bác sĩ cấp</p>
+  <main id="view-login" class="hidden-view min-h-screen flex flex-col justify-center px-5 py-8 max-w-md mx-auto">
+    <!-- Nút chỉnh cỡ chữ nhanh ở màn hình đăng nhập (cho người cao tuổi) -->
+    <div class="flex justify-end mb-2">
+      <button type="button" class="btn-open-font-size flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/80 border border-slate-200 text-xs font-bold text-teal-800 shadow-sm backdrop-blur">
+        <span class="text-base font-black">Aa</span>
+        <span>Cỡ chữ: <span class="current-font-label">Vừa</span></span>
+      </button>
     </div>
+
+    <div class="text-center mb-6 fade-in">
+      <div class="relative inline-block">
+        <img src="/icons/icon-192.png" alt="" width="84" height="84" class="mx-auto rounded-3xl shadow-xl mb-3 border-2 border-white">
+        <span class="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1 rounded-full text-xs shadow">✓</span>
+      </div>
+      <h1 class="text-2xl font-extrabold text-teal-900 tracking-tight">Tuân thủ thuốc ĐTĐ</h1>
+      <p class="text-slate-500 text-sm mt-1">Đồng hành cùng bệnh nhân Đái tháo đường</p>
+    </div>
+
     <form id="login-form" class="card p-6 space-y-4 fade-in" autocomplete="on" novalidate>
       <div>
-        <label for="login-code" class="block text-sm font-semibold mb-1">Mã bệnh nhân</label>
-        <input id="login-code" name="username" type="text" inputmode="text" autocapitalize="characters" autocomplete="username" required maxlength="32"
-               class="w-full border border-slate-300 rounded-xl px-4 py-3 text-lg" placeholder="Ví dụ: BN0001">
+        <label for="login-code" class="block text-sm font-bold text-slate-700 mb-1">Mã bệnh nhân</label>
+        <div class="relative">
+          <input id="login-code" name="username" type="text" inputmode="text" autocapitalize="characters" autocomplete="username" required maxlength="32"
+                 class="w-full border-2 border-slate-200 focus:border-teal-600 rounded-2xl px-4 py-3.5 text-lg font-semibold tracking-wide transition-all" placeholder="Ví dụ: BN0001">
+        </div>
       </div>
       <div>
-        <label for="login-password" class="block text-sm font-semibold mb-1">Mật khẩu</label>
+        <label for="login-password" class="block text-sm font-bold text-slate-700 mb-1">Mật khẩu</label>
         <input id="login-password" name="password" type="password" autocomplete="current-password" required maxlength="72"
-               class="w-full border border-slate-300 rounded-xl px-4 py-3 text-lg" placeholder="••••••">
+               class="w-full border-2 border-slate-200 focus:border-teal-600 rounded-2xl px-4 py-3.5 text-lg transition-all" placeholder="••••••">
       </div>
-      <p id="login-error" class="text-red-600 text-sm font-medium hidden-view" role="alert"></p>
-      <button id="login-submit" type="submit" class="btn hero-grad text-white w-full py-3.5 text-lg shadow-md">Đăng nhập</button>
-      <p class="text-xs text-slate-500 text-center">Quên mật khẩu? Liên hệ bác sĩ/dược sĩ để đặt lại.</p>
+      <p id="login-error" class="text-rose-600 text-sm font-semibold hidden-view" role="alert"></p>
+      <button id="login-submit" type="submit" class="btn hero-grad text-white w-full py-4 text-lg shadow-lg shadow-teal-700/25">
+        Đăng nhập
+      </button>
+      <p class="text-xs text-slate-400 text-center">Quên mật khẩu? Vui lòng liên hệ bác sĩ để được cấp lại.</p>
     </form>
-    <p class="text-center text-sm mt-6"><a href="/admin.html" class="text-teal-700 underline">Dành cho bác sĩ / dược sĩ</a></p>
+    <p class="text-center text-sm mt-6">
+      <a href="/admin.html" class="text-teal-700 font-semibold hover:underline">Trang dành cho bác sĩ / dược sĩ →</a>
+    </p>
   </main>
 
   <!-- ĐỔI MẬT KHẨU BẮT BUỘC -->
@@ -68,127 +94,264 @@
     </div>
   </main>
 
-  <!-- ỨNG DỤNG -->
+  <!-- ỨNG DỤNG CHÍNH -->
   <div id="view-app" class="hidden-view max-w-md mx-auto pb-28">
-    <header class="hero-grad text-white px-5 pt-8 pb-14 rounded-b-[2rem]">
-      <p class="text-teal-100 text-sm">Xin chào,</p>
-      <h1 id="hello-name" class="text-2xl font-extrabold"></h1>
-      <p id="today-label" class="text-teal-50 text-sm mt-1 capitalize"></p>
+    <!-- HEADER Y TẾ CAO CẤP -->
+    <header class="hero-grad text-white px-5 pt-8 pb-14 rounded-b-[2.5rem] shadow-xl relative overflow-hidden">
+      <!-- Vòng tròn trang trí mờ phía sau -->
+      <div class="absolute -top-12 -right-12 w-44 h-44 rounded-full bg-white/10 blur-xl pointer-events-none"></div>
+
+      <div class="relative z-10 flex items-start justify-between">
+        <div>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-800/40 text-teal-100 text-xs font-semibold backdrop-blur">
+            <span>●</span> Đang theo dõi điều trị
+          </span>
+          <h1 id="hello-name" class="text-2xl font-black mt-1 tracking-tight"></h1>
+          <p id="today-label" class="text-teal-100/90 text-sm mt-0.5 capitalize font-medium"></p>
+        </div>
+
+        <!-- NÚT TÙY CHỈNH CỠ CHỮ -->
+        <button type="button" class="btn-open-font-size flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-95 border border-white/20 text-white text-xs font-bold backdrop-blur transition-all shadow-sm">
+          <span class="text-base font-black">Aa</span>
+          <span class="current-font-label">Vừa</span>
+        </button>
+      </div>
     </header>
 
-    <div class="px-4 -mt-9 space-y-4">
-      <!-- HÔM NAY -->
+    <div class="px-4 -mt-8 space-y-4 relative z-20">
+      <!-- TAB HÔM NAY -->
       <section id="tab-today" class="tab-panel space-y-4" aria-labelledby="h-today">
-        <div class="card p-4">
-          <div class="flex items-center justify-between">
-            <h2 id="h-today" class="font-extrabold text-lg">Thuốc hôm nay</h2>
-            <span id="progress-label" class="text-sm font-bold text-teal-700"></span>
+        <!-- TIẾN ĐỘ UỐNG THUỐC -->
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 id="h-today" class="font-extrabold text-lg text-slate-800">Lịch thuốc hôm nay</h2>
+              <p class="text-xs text-slate-400 font-medium">Uống thuốc đúng giờ để kiểm soát đường huyết</p>
+            </div>
+            <span id="progress-label" class="text-sm font-black text-teal-700 bg-teal-50 px-3 py-1 rounded-full border border-teal-100">0/0 đã dùng</span>
           </div>
-          <div class="h-2.5 bg-slate-100 rounded-full mt-3 overflow-hidden">
-            <div id="progress-bar" class="h-full hero-grad rounded-full transition-all duration-500" style="width:0%"></div>
+          <div class="h-3 bg-slate-100 rounded-full overflow-hidden p-0.5">
+            <div id="progress-bar" class="h-full hero-grad rounded-full transition-all duration-700 ease-out" style="width:0%"></div>
           </div>
         </div>
-        <div id="med-list" class="space-y-3"></div>
-      </section>
 
-      <!-- ĐƯỜNG HUYẾT -->
-      <section id="tab-sugar" class="tab-panel hidden-view space-y-4" aria-labelledby="h-sugar">
-        <form id="sugar-form" class="card p-4 space-y-3" novalidate>
-          <h2 id="h-sugar" class="font-extrabold text-lg">Ghi đường huyết</h2>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label for="sugar-level" class="block text-sm font-semibold mb-1">Chỉ số (mmol/L)</label>
-              <input id="sugar-level" type="number" inputmode="decimal" step="0.1" min="0.5" max="50" required class="w-full border border-slate-300 rounded-xl px-3 py-3 text-xl font-bold" placeholder="6.5">
+        <!-- HỘP THOẠI CHÚC MỪNG (XUẤT HIỆN KHI HOÀN THÀNH 100%) -->
+        <div id="celebration-box" class="hidden-view card p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border-2 border-emerald-300 bounce-in">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-2xl shadow-lg shadow-emerald-500/30 shrink-0">
+              🎉
             </div>
             <div>
-              <label for="sugar-time" class="block text-sm font-semibold mb-1">Thời điểm đo</label>
-              <select id="sugar-time" class="w-full border border-slate-300 rounded-xl px-3 py-3 text-base bg-white">
-                <option value="fasting">Lúc đói</option>
-                <option value="after_meal">Sau ăn</option>
+              <h3 class="font-black text-emerald-900 text-base">Tuyệt vời! Đã hoàn thành 100%</h3>
+              <p class="text-xs text-emerald-700 mt-0.5">Bạn đã tuân thủ đầy đủ tất cả các cữ thuốc trong ngày hôm nay. Hãy tiếp tục duy trì nhé!</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- DANH SÁCH THUỐC TRONG NGÀY -->
+        <div id="med-list" class="space-y-3.5"></div>
+      </section>
+
+      <!-- TAB ĐƯỜNG HUYẾT -->
+      <section id="tab-sugar" class="tab-panel hidden-view space-y-4" aria-labelledby="h-sugar">
+        <form id="sugar-form" class="card p-5 space-y-4" novalidate>
+          <div>
+            <h2 id="h-sugar" class="font-extrabold text-lg text-slate-800">Ghi nhận đường huyết</h2>
+            <p class="text-xs text-slate-500">Giúp bác sĩ đánh giá hiệu quả dùng thuốc</p>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="sugar-level" class="block text-xs font-bold text-slate-600 mb-1">Chỉ số (mmol/L)</label>
+              <input id="sugar-level" type="number" inputmode="decimal" step="0.1" min="0.5" max="50" required 
+                     class="w-full border-2 border-slate-200 focus:border-teal-600 rounded-2xl px-3.5 py-3 text-2xl font-black text-teal-800 text-center transition-all" placeholder="6.5">
+            </div>
+            <div>
+              <label for="sugar-time" class="block text-xs font-bold text-slate-600 mb-1">Thời điểm đo</label>
+              <select id="sugar-time" class="w-full border-2 border-slate-200 focus:border-teal-600 rounded-2xl px-3 py-3.5 text-sm font-semibold bg-white transition-all">
+                <option value="fasting">Lúc đói (Sáng sớm)</option>
+                <option value="after_meal">Sau ăn (2 giờ)</option>
               </select>
             </div>
           </div>
-          <p id="sugar-hint" class="text-sm font-medium hidden-view" role="status"></p>
-          <button id="sugar-submit" type="submit" class="btn hero-grad text-white w-full py-3 text-lg">Lưu chỉ số</button>
+          <p id="sugar-hint" class="text-xs font-bold p-3 rounded-xl hidden-view" role="status"></p>
+          <button id="sugar-submit" type="submit" class="btn hero-grad text-white w-full py-3.5 text-base shadow-md shadow-teal-700/20">
+            ✓ Lưu chỉ số đường huyết
+          </button>
         </form>
-        <div class="card p-4">
-          <h3 class="font-bold mb-2">7 ngày gần nhất</h3>
+
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-extrabold text-base text-slate-800">Biểu đồ 7 ngày gần nhất</h3>
+            <span class="text-xs font-semibold text-slate-400">Đơn vị: mmol/L</span>
+          </div>
           <div class="relative h-56"><canvas id="sugar-chart" role="img" aria-label="Biểu đồ đường huyết 7 ngày gần nhất"></canvas></div>
         </div>
-        <div class="card p-4">
-          <h3 class="font-bold mb-2">Lần đo gần đây</h3>
+
+        <div class="card p-5">
+          <h3 class="font-extrabold text-base text-slate-800 mb-3">Lịch sử đo gần đây</h3>
           <ul id="sugar-recent" class="divide-y divide-slate-100 text-sm"></ul>
         </div>
       </section>
 
-      <!-- ADR -->
+      <!-- TAB TRIỆU CHỨNG (ADR) -->
       <section id="tab-adr" class="tab-panel hidden-view space-y-4" aria-labelledby="h-adr">
-        <form id="adr-form" class="card p-4 space-y-4" novalidate>
+        <form id="adr-form" class="card p-5 space-y-4" novalidate>
           <div>
-            <h2 id="h-adr" class="font-extrabold text-lg">Báo cáo triệu chứng bất thường</h2>
-            <p class="text-sm text-slate-500">Chọn các triệu chứng bạn gặp sau khi dùng thuốc.</p>
+            <h2 id="h-adr" class="font-extrabold text-lg text-slate-800">Báo cáo triệu chứng bất thường</h2>
+            <p class="text-xs text-slate-500">Báo cáo ngay cho bác sĩ nếu bạn cảm thấy khó chịu sau khi dùng thuốc.</p>
           </div>
           <fieldset>
-            <legend class="sr-only">Triệu chứng</legend>
+            <legend class="text-xs font-bold text-slate-600 mb-2">Chọn triệu chứng bạn gặp phải:</legend>
             <div id="adr-symptoms" class="grid grid-cols-2 gap-2"></div>
           </fieldset>
           <fieldset>
-            <legend class="text-sm font-semibold mb-1">Mức độ</legend>
+            <legend class="text-xs font-bold text-slate-600 mb-2">Mức độ ảnh hưởng:</legend>
             <div class="grid grid-cols-3 gap-2" id="adr-severity"></div>
           </fieldset>
           <div>
-            <label for="adr-desc" class="block text-sm font-semibold mb-1">Mô tả chi tiết</label>
-            <textarea id="adr-desc" rows="4" maxlength="1000" class="w-full border border-slate-300 rounded-xl px-3 py-2" placeholder="Xảy ra khi nào, kéo dài bao lâu, đã dùng thuốc gì…"></textarea>
+            <label for="adr-desc" class="block text-xs font-bold text-slate-600 mb-1">Mô tả thêm (nếu có)</label>
+            <textarea id="adr-desc" rows="3" maxlength="1000" class="w-full border-2 border-slate-200 focus:border-teal-600 rounded-2xl p-3 text-sm transition-all" placeholder="Thời điểm bắt đầu, mức độ kéo dài, bạn đã xử trí ra sao…"></textarea>
           </div>
-          <p id="adr-error" class="text-red-600 text-sm font-medium hidden-view" role="alert"></p>
-          <div id="adr-severe-note" class="hidden-view bg-red-50 border border-red-200 text-red-800 rounded-xl p-3 text-sm font-semibold">
-            Triệu chứng nặng: hãy liên hệ ngay bác sĩ hoặc đến cơ sở y tế gần nhất. Báo cáo cũng sẽ được gửi tới bác sĩ.
+          <p id="adr-error" class="text-rose-600 text-sm font-semibold hidden-view" role="alert"></p>
+          <div id="adr-severe-note" class="hidden-view bg-rose-50 border-2 border-rose-200 text-rose-800 rounded-2xl p-4 text-xs font-bold leading-relaxed">
+            ⚠️ <strong>Cảnh báo khẩn:</strong> Nếu bạn gặp triệu chứng nặng (khó thở, co giật, lú lẫn), hãy gọi ngay số cấp cứu 115 hoặc người nhà đưa đến bệnh viện gần nhất!
           </div>
-          <button id="adr-submit" type="submit" class="btn hero-grad text-white w-full py-3 text-lg">Gửi báo cáo</button>
+          <button id="adr-submit" type="submit" class="btn hero-grad text-white w-full py-3.5 text-base shadow-md shadow-teal-700/20">
+            Gửi báo cáo tới Bác sĩ
+          </button>
         </form>
-        <div class="card p-4">
-          <h3 class="font-bold mb-2">Báo cáo đã gửi</h3>
+
+        <div class="card p-5">
+          <h3 class="font-extrabold text-base text-slate-800 mb-3">Các báo cáo đã gửi</h3>
           <ul id="adr-recent" class="divide-y divide-slate-100 text-sm"></ul>
         </div>
       </section>
 
-      <!-- TÀI KHOẢN -->
+      <!-- TAB TÀI KHOẢN -->
       <section id="tab-account" class="tab-panel hidden-view space-y-4" aria-labelledby="h-account">
-        <div class="card p-4 space-y-1">
-          <h2 id="h-account" class="font-extrabold text-lg">Tài khoản</h2>
-          <p class="text-sm text-slate-500">Mã bệnh nhân: <strong id="acc-code" class="text-slate-800"></strong></p>
-          <p class="text-sm text-slate-500">Họ tên: <strong id="acc-name" class="text-slate-800"></strong></p>
+        <div class="card p-5 space-y-2">
+          <h2 id="h-account" class="font-extrabold text-lg text-slate-800">Hồ sơ bệnh nhân</h2>
+          <div class="flex items-center justify-between py-1 border-b border-slate-100 text-sm">
+            <span class="text-slate-500">Mã bệnh nhân</span>
+            <strong id="acc-code" class="text-teal-900 font-bold"></strong>
+          </div>
+          <div class="flex items-center justify-between py-1 border-b border-slate-100 text-sm">
+            <span class="text-slate-500">Họ và tên</span>
+            <strong id="acc-name" class="text-slate-800 font-bold"></strong>
+          </div>
+          <div class="flex items-center justify-between pt-2">
+            <span class="text-sm text-slate-600 font-semibold">Cỡ chữ hiển thị</span>
+            <button type="button" class="btn-open-font-size px-3 py-1.5 rounded-xl bg-teal-50 text-teal-800 text-xs font-bold border border-teal-200">
+              <span class="current-font-label">Vừa</span> ✎ Đổi cỡ chữ
+            </button>
+          </div>
         </div>
-        <form id="pw-form" class="card p-4 space-y-3" novalidate>
-          <h3 class="font-bold">Đổi mật khẩu</h3>
+
+        <form id="pw-form" class="card p-5 space-y-3" novalidate>
+          <h3 class="font-bold text-slate-800">Đổi mật khẩu</h3>
           <div>
-            <label for="pw-new" class="block text-sm font-semibold mb-1">Mật khẩu mới</label>
-            <input id="pw-new" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border border-slate-300 rounded-xl px-3 py-3">
+            <label for="pw-new" class="block text-xs font-bold text-slate-600 mb-1">Mật khẩu mới</label>
+            <input id="pw-new" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-base">
           </div>
           <div>
-            <label for="pw-new2" class="block text-sm font-semibold mb-1">Nhập lại</label>
-            <input id="pw-new2" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border border-slate-300 rounded-xl px-3 py-3">
+            <label for="pw-new2" class="block text-xs font-bold text-slate-600 mb-1">Nhập lại mật khẩu mới</label>
+            <input id="pw-new2" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-base">
           </div>
-          <p id="pw-error" class="text-red-600 text-sm font-medium hidden-view" role="alert"></p>
-          <button id="pw-submit" type="submit" class="btn bg-teal-600 text-white w-full py-3">Đổi mật khẩu</button>
+          <p id="pw-error" class="text-rose-600 text-xs font-semibold hidden-view" role="alert"></p>
+          <button id="pw-submit" type="submit" class="btn bg-teal-700 text-white w-full py-3 text-sm">Lưu mật khẩu mới</button>
         </form>
-        <div class="card p-4 space-y-2">
-          <h3 class="font-bold">Cài ứng dụng lên điện thoại</h3>
-          <p class="text-sm text-slate-600"><strong>Android:</strong> mở menu trình duyệt → “Cài đặt ứng dụng”.<br><strong>iPhone:</strong> mở bằng Safari → nút Chia sẻ → “Thêm vào MH chính”.</p>
+
+        <div class="card p-5 space-y-2">
+          <h3 class="font-bold text-slate-800">Cài đặt ứng dụng vào điện thoại</h3>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            • <strong>iPhone / iPad:</strong> Mở Safari → bấm nút Chia sẻ (hình vuông có mũi tên lên) → chọn <strong>"Thêm vào MH chính"</strong>.<br>
+            • <strong>Android:</strong> Mở Chrome → bấm dấu 3 chấm góc trên → chọn <strong>"Cài đặt ứng dụng"</strong>.
+          </p>
         </div>
-        <button id="logout-btn" type="button" class="btn w-full py-3 bg-white border border-slate-300 text-slate-700">Đăng xuất</button>
+
+        <button id="logout-btn" type="button" class="btn w-full py-3.5 bg-white border border-slate-300 text-rose-600 font-bold shadow-sm">
+          Đăng xuất tài khoản
+        </button>
       </section>
     </div>
 
-    <nav class="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200" aria-label="Điều hướng chính">
-      <div class="max-w-md mx-auto grid grid-cols-4 pb-[env(safe-area-inset-bottom)]">
-        <button class="tab-btn py-3 flex flex-col items-center text-slate-500 text-xs font-semibold" data-tab="today" aria-selected="true"><span class="text-xl" aria-hidden="true">💊</span>Hôm nay<i class="tab-dot mt-0.5"></i></button>
-        <button class="tab-btn py-3 flex flex-col items-center text-slate-500 text-xs font-semibold" data-tab="sugar" aria-selected="false"><span class="text-xl" aria-hidden="true">🩸</span>Đường huyết<i class="tab-dot mt-0.5"></i></button>
-        <button class="tab-btn py-3 flex flex-col items-center text-slate-500 text-xs font-semibold" data-tab="adr" aria-selected="false"><span class="text-xl" aria-hidden="true">⚠️</span>Triệu chứng<i class="tab-dot mt-0.5"></i></button>
-        <button class="tab-btn py-3 flex flex-col items-center text-slate-500 text-xs font-semibold" data-tab="account" aria-selected="false"><span class="text-xl" aria-hidden="true">👤</span>Tài khoản<i class="tab-dot mt-0.5"></i></button>
+    <!-- THANH ĐIỀU HƯỚNG ĐÁY (BOTTOM NAVBAR) -->
+    <nav class="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]" aria-label="Điều hướng chính">
+      <div class="max-w-md mx-auto grid grid-cols-4 py-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))]">
+        <button class="tab-btn flex flex-col items-center text-slate-400 text-[11px] font-bold" data-tab="today" aria-selected="true">
+          <div class="tab-icon-wrap"><span class="text-xl" aria-hidden="true">💊</span></div>
+          <span>Hôm nay</span>
+          <i class="tab-dot mt-0.5"></i>
+        </button>
+        <button class="tab-btn flex flex-col items-center text-slate-400 text-[11px] font-bold" data-tab="sugar" aria-selected="false">
+          <div class="tab-icon-wrap"><span class="text-xl" aria-hidden="true">🩸</span></div>
+          <span>Đường huyết</span>
+          <i class="tab-dot mt-0.5"></i>
+        </button>
+        <button class="tab-btn flex flex-col items-center text-slate-400 text-[11px] font-bold" data-tab="adr" aria-selected="false">
+          <div class="tab-icon-wrap"><span class="text-xl" aria-hidden="true">⚠️</span></div>
+          <span>Triệu chứng</span>
+          <i class="tab-dot mt-0.5"></i>
+        </button>
+        <button class="tab-btn flex flex-col items-center text-slate-400 text-[11px] font-bold" data-tab="account" aria-selected="false">
+          <div class="tab-icon-wrap"><span class="text-xl" aria-hidden="true">👤</span></div>
+          <span>Tài khoản</span>
+          <i class="tab-dot mt-0.5"></i>
+        </button>
       </div>
     </nav>
   </div>
+
+  <!-- MODAL TÙY CHỈNH CỠ CHỮ TOÀN DIỆN (ACCESSIBILITY FONT SIZE PICKER) -->
+  <dialog id="dlg-font-size" class="m-auto rounded-3xl p-0 shadow-2xl backdrop:bg-slate-900/60 max-w-sm w-full">
+    <div class="card p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-black text-lg">Aa</div>
+          <h3 class="font-extrabold text-lg text-slate-800">Cỡ chữ hiển thị</h3>
+        </div>
+        <button type="button" id="font-size-close" class="text-slate-400 hover:text-slate-600 p-1 text-xl font-bold">✕</button>
+      </div>
+
+      <p class="text-xs text-slate-500">Chọn cỡ chữ phù hợp với mắt của bạn để dễ dàng theo dõi và bấm nút thuốc:</p>
+
+      <div class="space-y-2.5">
+        <button type="button" data-size="normal" class="font-size-choice w-full flex items-center justify-between p-3.5 rounded-2xl border-2 border-slate-200 hover:border-teal-600 text-left transition-all">
+          <div>
+            <div class="font-bold text-slate-800 text-base">1. Cỡ Vừa (Tiêu chuẩn)</div>
+            <div class="text-xs text-slate-400">Dành cho người mắt sáng, quen dùng điện thoại</div>
+          </div>
+          <span class="choice-check font-black text-teal-600 text-lg hidden-view">✓</span>
+        </button>
+
+        <button type="button" data-size="large" class="font-size-choice w-full flex items-center justify-between p-3.5 rounded-2xl border-2 border-slate-200 hover:border-teal-600 text-left transition-all">
+          <div>
+            <div class="font-bold text-slate-800 text-lg">2. Cỡ Lớn (Dễ đọc)</div>
+            <div class="text-xs text-slate-400">Khuyên dùng: Chữ to rõ, dễ nhìn</div>
+          </div>
+          <span class="choice-check font-black text-teal-600 text-lg hidden-view">✓</span>
+        </button>
+
+        <button type="button" data-size="xlarge" class="font-size-choice w-full flex items-center justify-between p-3.5 rounded-2xl border-2 border-slate-200 hover:border-teal-600 text-left transition-all">
+          <div>
+            <div class="font-bold text-slate-800 text-xl">3. Cỡ Rất Lớn (Siêu to)</div>
+            <div class="text-xs text-slate-400">Tối ưu cho người cao tuổi, thị lực kém</div>
+          </div>
+          <span class="choice-check font-black text-teal-600 text-lg hidden-view">✓</span>
+        </button>
+      </div>
+
+      <!-- Khung xem trước trực tiếp -->
+      <div class="p-3.5 rounded-2xl bg-teal-50/70 border border-teal-100 text-teal-900">
+        <div class="text-[11px] uppercase tracking-wider font-extrabold text-teal-700 mb-1">Mẫu chữ hiển thị:</div>
+        <p class="font-bold text-slate-800">💊 Metformin 500mg: Uống 1 viên sau ăn sáng</p>
+      </div>
+
+      <button type="button" id="font-size-done" class="btn hero-grad text-white w-full py-3.5 text-base shadow-md">
+        Xác nhận cỡ chữ
+      </button>
+    </div>
+  </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>

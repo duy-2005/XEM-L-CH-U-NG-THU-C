@@ -1,23 +1,248 @@
-/* Phong cách bổ sung ngoài Tailwind */
-:root { --brand: #0d9488; --brand-dark: #0f766e; }
-html { -webkit-tap-highlight-color: transparent; }
+/* ==========================================================================
+   THIẾT KẾ GIAO DIỆN Y TẾ CAO CẤP & KHẢ NĂNG TIẾP CẬN (ACCESSIBILITY)
+   ========================================================================== */
+
+:root {
+  --brand: #0d9488;
+  --brand-dark: #0f766e;
+  --brand-light: #ccfbf1;
+  --emerald-gradient: linear-gradient(135deg, #0d9488 0%, #059669 50%, #10b981 100%);
+  --surface-glass: rgba(255, 255, 255, 0.92);
+  --border-glass: rgba(255, 255, 255, 0.75);
+  --shadow-subtle: 0 4px 20px -2px rgba(13, 148, 136, 0.12), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 14px 34px -4px rgba(13, 148, 136, 0.22), 0 6px 14px -2px rgba(0, 0, 0, 0.06);
+}
+
+/* --- TÙY CHỈNH CỠ CHỮ TOÀN HỆ THỐNG (ACCESSIBILITY SCALING) --- */
+html {
+  font-size: 16px;
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+  transition: font-size 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html[data-font-size="normal"] {
+  font-size: 16px; /* Cỡ chuẩn */
+}
+
+html[data-font-size="large"] {
+  font-size: 18.5px; /* Cỡ lớn (+15%): Dễ đọc cho đa số bệnh nhân */
+}
+
+html[data-font-size="xlarge"] {
+  font-size: 21.5px; /* Cỡ rất lớn (+35%): Chữ to vượt trội cho người cao tuổi/thị lực kém */
+}
+
 body {
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(160deg, #ecfeff 0%, #f0fdf4 100%);
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  background: linear-gradient(175deg, #ecfeff 0%, #f0fdf4 40%, #f8fafc 100%);
   min-height: 100vh;
+  color: #0f172a;
   padding-bottom: env(safe-area-inset-bottom);
+  -webkit-font-smoothing: antialiased;
 }
-.hero-grad { background: linear-gradient(135deg, #0d9488 0%, #059669 60%, #10b981 100%); }
-.card { background: #fff; border-radius: 1.25rem; box-shadow: 0 6px 24px -10px rgba(13, 148, 136, .35); }
-.btn { border-radius: .9rem; font-weight: 700; transition: transform .12s ease, box-shadow .2s ease, opacity .2s; }
-.btn:active { transform: scale(.97); }
-.btn:disabled { opacity: .55; cursor: not-allowed; }
-.fade-in { animation: fadeIn .35s ease both; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.tab-btn[aria-selected="true"] { color: var(--brand-dark); }
-.tab-btn[aria-selected="true"] .tab-dot { background: var(--brand); transform: scale(1); }
-.tab-dot { width: 5px; height: 5px; border-radius: 999px; background: transparent; transform: scale(0); transition: .2s; }
+
+/* --- GRADIENT VÀ THẺ KÍNH (GLASSMORPHISM) --- */
+.hero-grad {
+  background: var(--emerald-gradient);
+}
+
+.hero-grad-subtle {
+  background: linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%);
+}
+
+.card {
+  background: var(--surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+  border-radius: 1.35rem;
+  box-shadow: var(--shadow-subtle);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.card-interactive:active {
+  transform: scale(0.985);
+}
+
+/* Thẻ cữ thuốc đang đến giờ uống (hiệu ứng viền phát sáng) */
+.card-current-slot {
+  border: 2px solid #0d9488 !important;
+  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.18), var(--shadow-float) !important;
+  animation: pulseGlow 3s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15), var(--shadow-float);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(13, 148, 136, 0.35), var(--shadow-float);
+  }
+}
+
+/* Thẻ đã uống xong */
+.card-taken {
+  background: linear-gradient(135deg, rgba(240, 253, 244, 0.95) 0%, rgba(236, 254, 255, 0.85) 100%);
+  border-color: #86efac !important;
+}
+
+/* Thẻ bỏ lỡ */
+.card-missed {
+  background: linear-gradient(135deg, rgba(255, 241, 242, 0.95) 0%, rgba(254, 242, 242, 0.85) 100%);
+  border-color: #fca5a5 !important;
+}
+
+/* --- NÚT BẤM (BUTTONS & MICRO-INTERACTIONS) --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  font-weight: 700;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.96);
+  filter: brightness(0.95);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* --- HOẠT ẢNH & HIỆU ỨNG (ANIMATIONS) --- */
+.fade-in {
+  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bounce-in {
+  animation: bounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* --- ĐIỀU HƯỚNG TAB BOTTOM (NAVBAR) --- */
+.tab-btn {
+  position: relative;
+  transition: color 0.2s ease, transform 0.15s ease;
+}
+
+.tab-btn:active {
+  transform: scale(0.92);
+}
+
+.tab-btn[aria-selected="true"] {
+  color: var(--brand-dark);
+}
+
+.tab-btn[aria-selected="true"] .tab-icon-wrap {
+  background: rgba(13, 148, 136, 0.12);
+  transform: translateY(-2px);
+}
+
+.tab-btn[aria-selected="true"] .tab-dot {
+  background: var(--brand);
+  transform: scale(1);
+}
+
+.tab-icon-wrap {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tab-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: transparent;
+  transform: scale(0);
+  transition: transform 0.2s ease;
+}
+
+/* --- THANH TIẾN ĐỘ THUỐC --- */
+.progress-glow {
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+}
+
+/* --- MODAL DIALOGS --- */
+dialog {
+  border: none;
+  background: transparent;
+  padding: 0;
+  max-width: 92vw;
+}
+
+dialog::backdrop {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fadeIn 0.25s ease;
+}
+
+dialog[open] {
+  animation: dialogPop 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes dialogPop {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* --- CANVAS CHÚC MỪNG (CONFETTI) --- */
+#confetti-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Focus styles */
 input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
-  outline: 3px solid rgba(13, 148, 136, .45); outline-offset: 1px;
+  outline: 3px solid rgba(13, 148, 136, 0.45);
+  outline-offset: 1px;
 }
-.hidden-view { display: none !important; }
+
+.hidden-view {
+  display: none !important;
+}

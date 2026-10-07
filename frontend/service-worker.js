@@ -1,5 +1,5 @@
 /* Service worker: cache vỏ ứng dụng (cùng origin), KHÔNG cache dữ liệu y tế/API, nhận Web Push. */
-const CACHE = 'dtd-shell-v1';
+const CACHE = 'dtd-shell-v2';
 const SHELL = [
   '/index.html', '/app.js', '/common.js', '/styles.css', '/manifest.json',
   '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png',

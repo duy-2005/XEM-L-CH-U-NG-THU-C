@@ -8,8 +8,117 @@ function showView(name) {
   for (const v of ['loading', 'login', 'change-pw', 'app']) show($('view-' + v), v === name);
 }
 
+/* --- QUẢN LÝ CỠ CHỮ TOÀN ỨNG DỤNG (ACCESSIBILITY FONT SIZE) --- */
+const FONT_LABELS = {
+  normal: 'Vừa',
+  large: 'Lớn',
+  xlarge: 'Rất lớn',
+};
+
+function getSavedFontSize() {
+  return localStorage.getItem('dtd_font_size') || 'normal';
+}
+
+function applyFontSize(size) {
+  if (!['normal', 'large', 'xlarge'].includes(size)) size = 'normal';
+  document.documentElement.setAttribute('data-font-size', size);
+  localStorage.setItem('dtd_font_size', size);
+  document.querySelectorAll('.current-font-label').forEach((el) => {
+    el.textContent = FONT_LABELS[size];
+  });
+  document.querySelectorAll('.font-size-choice').forEach((btn) => {
+    const isCurrent = btn.dataset.size === size;
+    btn.classList.toggle('border-teal-600', isCurrent);
+    btn.classList.toggle('bg-teal-50', isCurrent);
+    btn.classList.toggle('border-slate-200', !isCurrent);
+    const check = btn.querySelector('.choice-check');
+    if (check) show(check, isCurrent);
+  });
+}
+
+function initFontSizeControls() {
+  applyFontSize(getSavedFontSize());
+
+  document.querySelectorAll('.btn-open-font-size').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      applyFontSize(getSavedFontSize());
+      $('dlg-font-size').showModal();
+    });
+  });
+
+  document.querySelectorAll('.font-size-choice').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      applyFontSize(btn.dataset.size);
+    });
+  });
+
+  $('font-size-close').addEventListener('click', () => $('dlg-font-size').close());
+  $('font-size-done').addEventListener('click', () => {
+    $('dlg-font-size').close();
+    toast('Đã cập nhật cỡ chữ');
+  });
+}
+
+/* --- HIỆU ỨNG PHÁO HOA CHÚC MỪNG (CONFETTI CELEBRATION) --- */
+function triggerConfetti() {
+  const canvas = $('confetti-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const particles = [];
+  const colors = ['#10b981', '#0d9488', '#34d399', '#f59e0b', '#06b6d4', '#ec4899', '#fbbf24'];
+  for (let i = 0; i < 90; i++) {
+    particles.push({
+      x: canvas.width * 0.5 + (Math.random() - 0.5) * 160,
+      y: canvas.height * 0.4 + (Math.random() - 0.5) * 80,
+      vx: (Math.random() - 0.5) * 14,
+      vy: (Math.random() - 1.3) * 16,
+      size: Math.random() * 9 + 5,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rotation: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * 10,
+      life: 1,
+    });
+  }
+
+  let animId;
+  const start = Date.now();
+  function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const elapsed = Date.now() - start;
+    let active = 0;
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.38; // trọng lực
+      p.rotation += p.rotSpeed;
+      p.life = Math.max(0, 1 - elapsed / 3300);
+      if (p.life > 0 && p.y < canvas.height + 60) {
+        active++;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life;
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+        ctx.restore();
+      }
+    }
+    if (active > 0 && elapsed < 3500) {
+      animId = requestAnimationFrame(loop);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      cancelAnimationFrame(animId);
+    }
+  }
+  loop();
+}
+
 /* ---------------------------------------------------------------- khởi động */
 async function boot() {
+  initFontSizeControls();
   registerServiceWorker();
   try {
     cfg = await loadConfig();
@@ -61,7 +170,11 @@ function bindEvents() {
 
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
-  document.querySelectorAll('.tab-panel').forEach((p) => show(p, p.id === 'tab-' + tab));
+  document.querySelectorAll('.tab-panel').forEach((p) => {
+    const isCurrent = p.id === 'tab-' + tab;
+    show(p, isCurrent);
+    if (isCurrent) p.classList.add('fade-in');
+  });
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (tab === 'today') loadToday();
   if (tab === 'sugar') loadSugar();
@@ -105,11 +218,22 @@ async function onChangePassword(e, id1, id2, errId, btnId, first) {
   if (e2) { setError($(errId), 'Đã đổi mật khẩu nhưng chưa cập nhật hồ sơ, vui lòng thử lại'); return; }
   profile.must_change_password = false;
   $(id1).value = ''; $(id2).value = '';
-  toast('Đã đổi mật khẩu');
+  toast('Đã đổi mật khẩu thành công');
   if (first) enterApp();
 }
 
 /* ---------------------------------------------------------------- thuốc hôm nay */
+function getCurrentSlot() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 10) return 'sang';
+  if (h >= 10 && h < 14) return 'trua';
+  if (h >= 14 && h < 18) return 'chieu';
+  if (h >= 18 && h < 21) return 'toi';
+  return 'truoc_ngu';
+}
+
+let _prevTakenCount = -1;
+
 async function loadToday() {
   const today = vnToday();
   const [presc, logs] = await Promise.all([
@@ -118,7 +242,10 @@ async function loadToday() {
   ]);
   const list = $('med-list');
   list.replaceChildren();
-  if (presc.error || logs.error) { list.append(h('p', { class: 'text-red-600 text-center' }, 'Không tải được dữ liệu. Kiểm tra kết nối mạng.')); return; }
+  if (presc.error || logs.error) {
+    list.append(h('p', { class: 'text-rose-600 text-center font-bold' }, 'Không tải được dữ liệu. Kiểm tra kết nối mạng.'));
+    return;
+  }
 
   const done = new Map(logs.data.map((l) => [`${l.prescription_id}|${l.time_slot}`, l.status]));
   const items = [];
@@ -126,40 +253,99 @@ async function loadToday() {
   items.sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot));
 
   if (!items.length) {
-    list.append(h('div', { class: 'card p-6 text-center text-slate-500' }, 'Bác sĩ chưa kê thuốc cho bạn.'));
+    list.append(h('div', { class: 'card p-8 text-center text-slate-500 space-y-2' },
+      h('div', { class: 'text-4xl' }, '🩺'),
+      h('p', { class: 'font-bold text-slate-700' }, 'Bác sĩ chưa kê đơn thuốc cho bạn'),
+      h('p', { class: 'text-xs text-slate-400' }, 'Khi bác sĩ kê đơn trên hệ thống, lịch thuốc sẽ hiển thị ở đây.')));
+    $('progress-label').textContent = '0/0';
+    $('progress-bar').style.width = '0%';
+    show($('celebration-box'), false);
+    return;
   }
+
+  const curSlot = getCurrentSlot();
   let taken = 0;
   for (const { p, slot } of items) {
     const status = done.get(`${p.id}|${slot}`);
     if (status === 'taken') taken++;
-    list.append(medCard(p, slot, status));
+    const isCurrent = slot === curSlot && !status;
+    list.append(medCard(p, slot, status, isCurrent));
   }
+
   const total = items.length;
-  $('progress-label').textContent = total ? `${taken}/${total} đã dùng` : '';
-  $('progress-bar').style.width = total ? `${Math.round((taken / total) * 100)}%` : '0%';
+  $('progress-label').textContent = `${taken}/${total} đã dùng`;
+  const pct = Math.round((taken / total) * 100);
+  $('progress-bar').style.width = `${pct}%`;
+  if (pct === 100) $('progress-bar').classList.add('progress-glow');
+  else $('progress-bar').classList.remove('progress-glow');
+
+  const allDone = taken === total && total > 0;
+  show($('celebration-box'), allDone);
+
+  // Kích hoạt pháo hoa chúc mừng nếu vừa hoàn thành cữ cuối cùng
+  if (allDone && _prevTakenCount !== -1 && _prevTakenCount < total) {
+    triggerConfetti();
+  }
+  _prevTakenCount = taken;
 }
 
-function medCard(p, slot, status) {
+function medCard(p, slot, status, isCurrent) {
   const verbDone = p.is_insulin ? 'Đã tiêm' : 'Đã uống';
-  const border = status === 'taken' ? 'border-emerald-400' : status === 'missed' ? 'border-red-400' : 'border-transparent';
-  const btn = (label, value, cls) => h('button', {
-    type: 'button',
-    class: `btn py-3.5 text-lg ${cls} ${status && status !== value ? 'opacity-40' : ''}`,
-    'aria-pressed': String(status === value),
-    onclick: (ev) => markDose(p, slot, value, ev.currentTarget),
-  }, status === value ? `✓ ${label}` : label);
+  let cardClass = 'card p-5 fade-in transition-all relative overflow-hidden';
+  if (status === 'taken') cardClass += ' card-taken';
+  else if (status === 'missed') cardClass += ' card-missed';
+  else if (isCurrent) cardClass += ' card-current-slot';
 
-  return h('article', { class: `card p-4 border-2 ${border} fade-in` },
-    h('div', { class: 'flex items-start justify-between gap-2' },
+  const statusBadge = () => {
+    if (status === 'taken') {
+      return h('span', { class: 'inline-flex items-center gap-1 text-xs font-black bg-emerald-100 text-emerald-800 rounded-full px-3 py-1 shadow-sm' },
+        h('span', {}, '✓'), h('span', {}, verbDone));
+    }
+    if (status === 'missed') {
+      return h('span', { class: 'inline-flex items-center gap-1 text-xs font-black bg-rose-100 text-rose-800 rounded-full px-3 py-1 shadow-sm' },
+        h('span', {}, '✕'), h('span', {}, 'Bỏ lỡ'));
+    }
+    if (isCurrent) {
+      return h('span', { class: 'inline-flex items-center gap-1 text-xs font-black bg-teal-600 text-white rounded-full px-3 py-1 shadow-md shadow-teal-600/30 animate-pulse' },
+        h('span', {}, '⚡'), h('span', {}, 'Đến giờ uống'));
+    }
+    return h('span', { class: 'text-xs font-bold text-slate-400 bg-slate-100 rounded-full px-2.5 py-0.5' }, 'Chưa đến');
+  };
+
+  const btnTake = h('button', {
+    type: 'button',
+    class: `btn py-3.5 px-4 text-base font-extrabold flex-1 gap-2 shadow-sm transition-all ${
+      status === 'taken' 
+        ? 'bg-emerald-600 text-white shadow-emerald-600/25 ring-2 ring-emerald-400' 
+        : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
+    }`,
+    onclick: (ev) => markDose(p, slot, 'taken', ev.currentTarget),
+  }, h('span', { class: 'text-lg' }, '✓'), h('span', {}, verbDone));
+
+  const btnMiss = h('button', {
+    type: 'button',
+    class: `btn py-3.5 px-3 text-sm font-bold border transition-all ${
+      status === 'missed'
+        ? 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-400'
+        : 'bg-white hover:bg-rose-50/50 text-slate-600 border-slate-200'
+    }`,
+    onclick: (ev) => markDose(p, slot, 'missed', ev.currentTarget),
+  }, 'Bỏ lỡ');
+
+  return h('article', { class: cardClass },
+    h('div', { class: 'flex items-start justify-between gap-3 mb-2' },
       h('div', {},
-        h('p', { class: 'text-xs font-bold uppercase tracking-wide text-teal-700' }, SLOTS[slot]),
-        h('h3', { class: 'text-xl font-extrabold' }, p.drug_name),
-        h('p', { class: 'text-slate-600' }, p.dosage)),
-      p.is_insulin && h('span', { class: 'shrink-0 text-xs font-bold bg-amber-100 text-amber-800 rounded-full px-2.5 py-1' }, '💉 Insulin')),
-    p.instruction && h('p', { class: 'text-sm text-slate-500 mt-1' }, p.instruction),
-    h('div', { class: 'grid grid-cols-2 gap-3 mt-3' },
-      btn(verbDone, 'taken', 'bg-emerald-500 text-white'),
-      btn('Bỏ lỡ', 'missed', 'bg-red-50 text-red-600 border border-red-200')));
+        h('span', { class: 'text-xs font-black uppercase tracking-wider text-teal-700 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-100' }, SLOTS[slot]),
+        h('h3', { class: 'text-xl font-black text-slate-900 mt-1.5' }, p.drug_name),
+        h('p', { class: 'text-slate-600 font-bold text-sm mt-0.5' }, `Liều dùng: ${p.dosage}`)),
+      h('div', { class: 'flex flex-col items-end gap-1.5 shrink-0' },
+        statusBadge(),
+        p.is_insulin && h('span', { class: 'text-[11px] font-bold bg-amber-100 text-amber-900 rounded-full px-2.5 py-0.5 border border-amber-200' }, '💉 Insulin'))),
+    p.instruction && h('p', { class: 'text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100 mt-2 font-medium' },
+      h('strong', { class: 'text-slate-700' }, 'Hướng dẫn: '), p.instruction),
+    h('div', { class: 'flex items-center gap-2.5 mt-4' },
+      btnTake,
+      btnMiss));
 }
 
 async function markDose(p, slot, status, btn) {
@@ -168,16 +354,16 @@ async function markDose(p, slot, status, btn) {
     { patient_id: profile.id, prescription_id: p.id, date: vnToday(), time_slot: slot, status },
     { onConflict: 'prescription_id,date,time_slot' });
   if (error) { toast('Không lưu được, vui lòng thử lại', 'error'); btn.disabled = false; return; }
-  toast(status === 'taken' ? 'Đã ghi nhận' : 'Đã ghi nhận bỏ lỡ');
+  toast(status === 'taken' ? '✓ Đã ghi nhận dùng thuốc' : 'Đã ghi nhận bỏ lỡ');
   loadToday();
 }
 
 /* ---------------------------------------------------------------- đường huyết */
 function classifySugar(level, tod) {
-  if (level < 3.9) return ['Thấp (dưới 3.9). Hãy bổ sung đường nhanh và báo bác sĩ nếu có triệu chứng.', 'text-red-600'];
+  if (level < 3.9) return ['⚠️ Thấp (dưới 3.9 mmol/L): Có nguy cơ hạ đường huyết! Bổ sung ngay nước ngọt/kẹo và liên hệ bác sĩ nếu chóng mặt.', 'bg-rose-50 border-2 border-rose-200 text-rose-800'];
   const high = tod === 'fasting' ? 7.0 : 10.0;
-  if (level > high) return ['Cao hơn mục tiêu thông thường. Hãy theo dõi và trao đổi với bác sĩ.', 'text-amber-600'];
-  return ['Trong ngưỡng thường gặp. Tiếp tục duy trì!', 'text-emerald-600'];
+  if (level > high) return [`⚠️ Cao hơn mục tiêu (${tod === 'fasting' ? '> 7.0' : '> 10.0'} mmol/L). Hãy theo dõi sát và uống nhiều nước.`, 'bg-amber-50 border-2 border-amber-200 text-amber-800'];
+  return ['✓ Chỉ số an toàn: Nằm trong ngưỡng mục tiêu. Tiếp tục duy trì phong độ!', 'bg-emerald-50 border-2 border-emerald-200 text-emerald-800'];
 }
 
 async function onSaveSugar(e) {
@@ -191,9 +377,10 @@ async function onSaveSugar(e) {
   if (error) { toast('Không lưu được, vui lòng thử lại', 'error'); return; }
   const [text, cls] = classifySugar(level, tod);
   const hint = $('sugar-hint');
-  hint.textContent = text; hint.className = `text-sm font-semibold ${cls}`;
+  hint.textContent = text; hint.className = `text-xs font-bold p-3.5 rounded-2xl ${cls}`;
+  show(hint, true);
   $('sugar-level').value = '';
-  toast('Đã lưu chỉ số');
+  toast('Đã lưu chỉ số đường huyết');
   loadSugar();
 }
 
@@ -208,21 +395,28 @@ async function loadSugar() {
     const v = data.filter((r) => r.date === d && r.time_of_day === tod).map((r) => Number(r.level));
     return v.length ? +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : null;
   });
-  const ds = (label, tod, color) => ({ label, data: avg(tod), borderColor: color, backgroundColor: color, tension: .3, spanGaps: true, pointRadius: 4 });
+  const ds = (label, tod, color) => ({
+    label, data: avg(tod), borderColor: color, backgroundColor: color, tension: 0.35, spanGaps: true, pointRadius: 5, pointHoverRadius: 7,
+  });
   if (chart) chart.destroy();
   chart = new Chart($('sugar-chart'), {
     type: 'line',
     data: { labels: days.map((d) => d.slice(8) + '/' + d.slice(5, 7)), datasets: [ds('Lúc đói', 'fasting', '#0d9488'), ds('Sau ăn', 'after_meal', '#f59e0b')] },
-    options: { responsive: true, maintainAspectRatio: false, scales: { y: { title: { display: true, text: 'mmol/L' }, suggestedMin: 3, suggestedMax: 12 } }, plugins: { legend: { position: 'bottom' } } },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { y: { title: { display: true, text: 'mmol/L' }, suggestedMin: 3, suggestedMax: 12 } },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 14, font: { weight: 600 } } } },
+    },
   });
 
   const ul = $('sugar-recent');
   ul.replaceChildren();
-  if (!data.length) ul.append(h('li', { class: 'py-2 text-slate-500' }, 'Chưa có dữ liệu trong 7 ngày qua.'));
+  if (!data.length) ul.append(h('li', { class: 'py-3 text-center text-slate-400 text-xs' }, 'Chưa có dữ liệu đo trong 7 ngày qua.'));
   for (const r of data.slice(0, 8)) {
-    ul.append(h('li', { class: 'py-2 flex justify-between' },
-      h('span', {}, `${fmtDate(r.date)} · ${TOD[r.time_of_day]}`),
-      h('strong', {}, `${r.level} mmol/L`)));
+    ul.append(h('li', { class: 'py-2.5 flex justify-between items-center' },
+      h('span', { class: 'font-semibold text-slate-700' }, `${fmtDate(r.date)} · ${TOD[r.time_of_day]}`),
+      h('span', { class: 'font-black text-teal-800 bg-teal-50 px-2.5 py-1 rounded-xl border border-teal-100 text-sm' }, `${r.level} mmol/L`)));
   }
 }
 
@@ -230,13 +424,13 @@ async function loadSugar() {
 function buildAdrForm() {
   const box = $('adr-symptoms');
   SYMPTOMS.forEach((s, i) => {
-    box.append(h('label', { class: 'flex items-center gap-2 border border-slate-300 rounded-xl px-3 py-3 has-[:checked]:bg-teal-50 has-[:checked]:border-teal-500 cursor-pointer' },
-      h('input', { type: 'checkbox', name: 'symptom', value: s, id: 'sym-' + i, class: 'w-5 h-5 accent-teal-600' }),
-      h('span', { class: 'font-medium' }, s)));
+    box.append(h('label', { class: 'flex items-center gap-2.5 border-2 border-slate-200 rounded-2xl p-3 has-[:checked]:bg-teal-50 has-[:checked]:border-teal-600 cursor-pointer transition-all' },
+      h('input', { type: 'checkbox', name: 'symptom', value: s, id: 'sym-' + i, class: 'w-5 h-5 rounded-lg accent-teal-600' }),
+      h('span', { class: 'font-bold text-sm text-slate-800' }, s)));
   });
   const sev = $('adr-severity');
   Object.entries(SEVERITY).forEach(([v, label], i) => {
-    sev.append(h('label', { class: 'text-center border border-slate-300 rounded-xl py-3 font-semibold cursor-pointer has-[:checked]:bg-teal-600 has-[:checked]:text-white has-[:checked]:border-teal-600' },
+    sev.append(h('label', { class: 'text-center border-2 border-slate-200 rounded-2xl py-3 font-bold text-sm cursor-pointer transition-all has-[:checked]:bg-teal-700 has-[:checked]:text-white has-[:checked]:border-teal-700' },
       h('input', { type: 'radio', name: 'severity', value: v, class: 'sr-only', checked: i === 0 }), label));
   });
   sev.addEventListener('change', () => {
@@ -269,16 +463,16 @@ async function loadAdrRecent() {
     .order('created_at', { ascending: false }).limit(10);
   const ul = $('adr-recent');
   ul.replaceChildren();
-  if (error) { ul.append(h('li', { class: 'py-2 text-red-600' }, 'Không tải được dữ liệu')); return; }
-  if (!data.length) ul.append(h('li', { class: 'py-2 text-slate-500' }, 'Chưa có báo cáo nào.'));
+  if (error) { ul.append(h('li', { class: 'py-2 text-rose-600 font-bold' }, 'Không tải được dữ liệu')); return; }
+  if (!data.length) ul.append(h('li', { class: 'py-3 text-center text-slate-400 text-xs' }, 'Chưa có báo cáo tác dụng phụ nào.'));
   for (const r of data) {
-    const sevCls = r.severity === 'nang' ? 'bg-red-100 text-red-700' : r.severity === 'vua' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700';
-    ul.append(h('li', { class: 'py-2' },
-      h('div', { class: 'flex justify-between items-center' },
-        h('span', { class: 'font-semibold' }, fmtDate(r.date)),
-        h('span', { class: `text-xs font-bold rounded-full px-2 py-0.5 ${sevCls}` }, SEVERITY[r.severity])),
-      h('p', { class: 'text-slate-600' }, r.symptoms.join(', ')),
-      h('p', { class: 'text-xs text-slate-400' }, r.is_reviewed ? 'Bác sĩ đã xem' : 'Đang chờ bác sĩ xem')));
+    const sevCls = r.severity === 'nang' ? 'bg-rose-100 text-rose-800' : r.severity === 'vua' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800';
+    ul.append(h('li', { class: 'py-3 border-b border-slate-100 last:border-0' },
+      h('div', { class: 'flex justify-between items-center mb-1' },
+        h('span', { class: 'font-bold text-slate-800 text-sm' }, fmtDate(r.date)),
+        h('span', { class: `text-xs font-black rounded-full px-2.5 py-0.5 ${sevCls}` }, SEVERITY[r.severity])),
+      h('p', { class: 'text-slate-700 text-sm font-medium' }, r.symptoms.join(', ')),
+      h('p', { class: 'text-xs text-slate-400 mt-0.5' }, r.is_reviewed ? '✓ Bác sĩ đã xem xét' : '⏳ Đang chờ bác sĩ xem')));
   }
 }
 
