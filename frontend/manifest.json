@@ -1,0 +1,19 @@
+{
+  "name": "Tuân thủ thuốc Đái tháo đường",
+  "short_name": "ĐTĐ Thuốc",
+  "description": "Nhắc uống thuốc, theo dõi đường huyết và báo cáo tác dụng không mong muốn (ADR).",
+  "lang": "vi",
+  "dir": "ltr",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0fdfa",
+  "theme_color": "#0d9488",
+  "categories": ["medical", "health"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

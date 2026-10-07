@@ -1,0 +1,23 @@
+/* Phong cách bổ sung ngoài Tailwind */
+:root { --brand: #0d9488; --brand-dark: #0f766e; }
+html { -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(160deg, #ecfeff 0%, #f0fdf4 100%);
+  min-height: 100vh;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.hero-grad { background: linear-gradient(135deg, #0d9488 0%, #059669 60%, #10b981 100%); }
+.card { background: #fff; border-radius: 1.25rem; box-shadow: 0 6px 24px -10px rgba(13, 148, 136, .35); }
+.btn { border-radius: .9rem; font-weight: 700; transition: transform .12s ease, box-shadow .2s ease, opacity .2s; }
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.fade-in { animation: fadeIn .35s ease both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.tab-btn[aria-selected="true"] { color: var(--brand-dark); }
+.tab-btn[aria-selected="true"] .tab-dot { background: var(--brand); transform: scale(1); }
+.tab-dot { width: 5px; height: 5px; border-radius: 999px; background: transparent; transform: scale(0); transition: .2s; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+  outline: 3px solid rgba(13, 148, 136, .45); outline-offset: 1px;
+}
+.hidden-view { display: none !important; }

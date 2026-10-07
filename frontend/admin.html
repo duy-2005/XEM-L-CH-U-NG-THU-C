@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quản trị – Theo dõi thuốc & ADR đái tháo đường</title>
+  <meta name="description" content="Bảng điều khiển bác sĩ/dược sĩ: cảnh báo ADR, thuốc bỏ lỡ, quản lý bệnh nhân và đơn thuốc.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0f766e">
+  <link rel="icon" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="text-slate-800">
+  <div id="toast" role="status" aria-live="polite" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] hidden-view px-4 py-3 rounded-xl text-white font-semibold shadow-lg"></div>
+
+  <div id="view-loading" class="min-h-screen flex items-center justify-center text-teal-700 font-semibold">Đang tải…</div>
+
+  <!-- ĐĂNG NHẬP ADMIN -->
+  <main id="view-login" class="hidden-view min-h-screen flex items-center justify-center p-6">
+    <form id="login-form" class="card p-8 w-full max-w-md space-y-4 fade-in" novalidate>
+      <div class="text-center">
+        <img src="/icons/icon-192.png" alt="" width="72" height="72" class="mx-auto rounded-2xl shadow mb-3">
+        <h1 class="text-2xl font-extrabold text-teal-800">Trang quản trị</h1>
+        <p class="text-slate-500 text-sm">Dành cho bác sĩ / dược sĩ</p>
+      </div>
+      <div>
+        <label for="login-email" class="block text-sm font-semibold mb-1">Email</label>
+        <input id="login-email" type="email" autocomplete="username" required maxlength="200" class="w-full border border-slate-300 rounded-xl px-4 py-3">
+      </div>
+      <div>
+        <label for="login-password" class="block text-sm font-semibold mb-1">Mật khẩu</label>
+        <input id="login-password" type="password" autocomplete="current-password" required maxlength="72" class="w-full border border-slate-300 rounded-xl px-4 py-3">
+      </div>
+      <p id="login-error" class="text-red-600 text-sm font-medium hidden-view" role="alert"></p>
+      <button id="login-submit" type="submit" class="btn hero-grad text-white w-full py-3 text-lg">Đăng nhập</button>
+      <p class="text-center text-sm"><a href="/index.html" class="text-teal-700 underline">Trang bệnh nhân</a></p>
+    </form>
+  </main>
+
+  <!-- DASHBOARD -->
+  <div id="view-app" class="hidden-view min-h-screen lg:flex">
+    <aside class="hero-grad text-white lg:w-64 lg:min-h-screen p-5 flex lg:flex-col gap-4 items-center lg:items-stretch">
+      <div class="flex items-center gap-3">
+        <img src="/icons/icon-192.png" alt="" width="40" height="40" class="rounded-xl">
+        <div>
+          <p class="font-extrabold leading-tight">ĐTĐ – Quản trị</p>
+          <p id="admin-name" class="text-teal-100 text-xs"></p>
+        </div>
+      </div>
+      <nav class="flex lg:flex-col gap-2 lg:mt-6 flex-1" aria-label="Điều hướng">
+        <button class="nav-btn btn text-left px-4 py-2.5 hover:bg-white/15" data-view="alerts" aria-selected="true">🔔 Trung tâm cảnh báo <span id="alert-count" class="ml-1 bg-red-500 text-xs rounded-full px-2 py-0.5 hidden-view"></span></button>
+        <button class="nav-btn btn text-left px-4 py-2.5 hover:bg-white/15" data-view="patients" aria-selected="false">👥 Bệnh nhân</button>
+        <button class="nav-btn btn text-left px-4 py-2.5 hover:bg-white/15" data-view="stats" aria-selected="false">📊 Thống kê ADR</button>
+        <button class="nav-btn btn text-left px-4 py-2.5 hover:bg-white/15" data-view="reminders" aria-selected="false">⏰ Lịch & Email Nhắc</button>
+      </nav>
+      <button id="logout-btn" class="btn px-4 py-2.5 bg-white/15 hover:bg-white/25">Đăng xuất</button>
+    </aside>
+
+    <main class="flex-1 p-5 lg:p-8 max-w-6xl">
+      <!-- CẢNH BÁO -->
+      <section id="v-alerts" class="space-y-6" aria-labelledby="h-alerts">
+        <div class="flex items-center justify-between">
+          <h1 id="h-alerts" class="text-2xl font-extrabold text-teal-900">Trung tâm cảnh báo</h1>
+          <button id="refresh-alerts" class="btn bg-white border border-slate-300 px-4 py-2 text-sm">↻ Làm mới</button>
+        </div>
+        <div class="grid xl:grid-cols-2 gap-6">
+          <div class="card p-5">
+            <h2 class="font-bold text-lg mb-3">Báo cáo ADR chưa xem</h2>
+            <ul id="adr-list" class="space-y-3"></ul>
+          </div>
+          <div class="card p-5">
+            <h2 class="font-bold text-lg mb-3">Thuốc bỏ lỡ (3 ngày gần nhất)</h2>
+            <ul id="missed-list" class="divide-y divide-slate-100 text-sm"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- BỆNH NHÂN -->
+      <section id="v-patients" class="hidden-view space-y-6" aria-labelledby="h-patients">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h1 id="h-patients" class="text-2xl font-extrabold text-teal-900">Bệnh nhân</h1>
+          <div class="flex gap-2">
+            <label for="patient-search" class="sr-only">Tìm bệnh nhân</label>
+            <input id="patient-search" type="search" placeholder="Tìm theo mã / tên…" class="border border-slate-300 rounded-xl px-4 py-2 w-56">
+            <button id="add-patient-btn" class="btn hero-grad text-white px-4 py-2">+ Thêm bệnh nhân</button>
+          </div>
+        </div>
+        <div class="card overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-teal-50 text-teal-900 text-left">
+              <tr><th class="p-3">Mã BN</th><th class="p-3">Họ tên</th><th class="p-3">Điện thoại</th><th class="p-3">Trạng thái</th><th class="p-3"></th></tr>
+            </thead>
+            <tbody id="patient-rows" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- THỐNG KÊ -->
+      <section id="v-stats" class="hidden-view space-y-6" aria-labelledby="h-stats">
+        <div class="flex items-center justify-between">
+          <h1 id="h-stats" class="text-2xl font-extrabold text-teal-900">Thống kê ADR</h1>
+          <label class="text-sm">Khoảng thời gian
+            <select id="stats-days" class="ml-2 border border-slate-300 rounded-xl px-3 py-2 bg-white">
+              <option value="7">7 ngày</option><option value="30" selected>30 ngày</option><option value="90">90 ngày</option><option value="365">1 năm</option>
+            </select>
+          </label>
+        </div>
+        <div id="stats-body" class="grid md:grid-cols-3 gap-6"></div>
+      </section>
+
+      <!-- LỊCH & EMAIL NHẮC THUỐC -->
+      <section id="v-reminders" class="hidden-view space-y-6" aria-labelledby="h-reminders">
+        <div class="flex items-center justify-between">
+          <h1 id="h-reminders" class="text-2xl font-extrabold text-teal-900">Lịch & Email Nhắc Thuốc Tự Động</h1>
+          <button id="refresh-reminders" class="btn bg-white border border-slate-300 px-4 py-2 text-sm">↻ Làm mới</button>
+        </div>
+
+        <div class="grid lg:grid-cols-2 gap-6">
+          <!-- Trạng thái SMTP & Khung giờ -->
+          <div class="card p-5 space-y-4">
+            <h2 class="font-bold text-lg text-teal-800">Trạng thái cấu hình Gmail SMTP</h2>
+            <div id="smtp-status-box" class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm">
+              Đang tải thông tin cấu hình...
+            </div>
+
+            <form id="slot-times-form" class="space-y-3 pt-2" novalidate>
+              <div class="flex items-center justify-between">
+                <h3 class="font-bold text-base text-teal-800">Cài đặt khung giờ nhắc (Giờ VN)</h3>
+                <button id="save-slots-btn" type="submit" class="btn hero-grad text-white text-xs px-3.5 py-1.5 font-bold shadow">💾 Lưu khung giờ</button>
+              </div>
+              <p class="text-xs text-slate-500">Bạn có thể tự chọn giờ cho từng buổi (Sáng, Trưa, Chiều, Tối...). Hệ thống sẽ lưu và áp dụng ngay lập tức:</p>
+              <div id="slot-times-inputs" class="space-y-2.5 pt-1"></div>
+            </form>
+          </div>
+
+          <!-- Kiểm tra & Kích hoạt thủ công -->
+          <div class="space-y-6">
+            <!-- Test gửi email -->
+            <form id="test-email-form" class="card p-5 space-y-3" novalidate>
+              <h2 class="font-bold text-lg text-teal-800">Thử nghiệm gửi email</h2>
+              <p class="text-xs text-slate-500">Gửi 1 email kiểm tra để chắc chắn cấu hình Gmail hoạt động tốt:</p>
+              <div>
+                <label for="test-email-input" class="block text-sm font-semibold mb-1">Email nhận thử</label>
+                <input id="test-email-input" type="email" required placeholder="nhap_email_cua_ban@gmail.com" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm">
+              </div>
+              <p id="test-email-msg" class="text-sm font-medium hidden-view"></p>
+              <button id="test-email-btn" type="submit" class="btn hero-grad text-white px-4 py-2 text-sm w-full">Gửi email thử nghiệm</button>
+            </form>
+
+            <!-- Kích hoạt nhắc thuốc ngay lập tức -->
+            <div class="card p-5 space-y-3">
+              <h2 class="font-bold text-lg text-teal-800">Kích hoạt gửi nhắc thủ công</h2>
+              <p class="text-xs text-slate-500">Gửi nhắc ngay bây giờ cho bệnh nhân có đơn thuốc mà chưa bấm "Đã uống":</p>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label for="manual-slot-select" class="block text-xs font-semibold mb-1">Khung giờ</label>
+                  <select id="manual-slot-select" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white">
+                    <option value="">Tất cả khung giờ</option>
+                    <option value="sang">Buổi Sáng</option>
+                    <option value="trua">Buổi Trưa</option>
+                    <option value="chieu">Buổi Chiều</option>
+                    <option value="toi">Buổi Tối</option>
+                    <option value="truoc_ngu">Trước Khi Ngủ</option>
+                  </select>
+                </div>
+                <div class="flex items-end">
+                  <button id="trigger-reminders-btn" type="button" class="btn bg-teal-600 text-white px-4 py-2 text-sm w-full">Gửi nhắc ngay</button>
+                </div>
+              </div>
+              <div id="trigger-result" class="text-xs text-slate-600 p-3 bg-slate-50 rounded-xl hidden-view"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- HỘP THOẠI THÊM BỆNH NHÂN -->
+  <dialog id="dlg-add-patient" class="card p-0 w-[min(30rem,92vw)] backdrop:bg-slate-900/50">
+    <form id="add-patient-form" method="dialog" class="p-6 space-y-3" novalidate>
+      <h2 class="text-xl font-extrabold text-teal-900">Thêm bệnh nhân</h2>
+      <div>
+        <label for="np-code" class="block text-sm font-semibold mb-1">Mã bệnh nhân (số hồ sơ)</label>
+        <input id="np-code" required maxlength="32" pattern="[A-Za-z0-9_-]{3,32}" class="w-full border border-slate-300 rounded-xl px-3 py-2" placeholder="VD: BN0001">
+      </div>
+      <div>
+        <label for="np-name" class="block text-sm font-semibold mb-1">Họ tên</label>
+        <input id="np-name" required maxlength="120" class="w-full border border-slate-300 rounded-xl px-3 py-2">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="np-phone" class="block text-sm font-semibold mb-1">Điện thoại</label>
+          <input id="np-phone" type="tel" maxlength="20" class="w-full border border-slate-300 rounded-xl px-3 py-2">
+        </div>
+        <div>
+          <label for="np-email" class="block text-sm font-semibold mb-1">Email (nhận nhắc thuốc)</label>
+          <input id="np-email" type="email" maxlength="200" class="w-full border border-slate-300 rounded-xl px-3 py-2">
+        </div>
+      </div>
+      <p class="text-xs text-slate-500">Mật khẩu mặc định <strong>123456</strong>, bệnh nhân bị yêu cầu đổi ở lần đăng nhập đầu.</p>
+      <p id="np-error" class="text-red-600 text-sm font-medium hidden-view" role="alert"></p>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" id="np-cancel" class="btn px-4 py-2 border border-slate-300 bg-white">Hủy</button>
+        <button type="submit" id="np-submit" class="btn hero-grad text-white px-5 py-2">Tạo tài khoản</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- HỘP THOẠI CHI TIẾT BỆNH NHÂN -->
+  <dialog id="dlg-patient" class="card p-0 w-[min(46rem,94vw)] max-h-[92vh] backdrop:bg-slate-900/50">
+    <div class="p-6 space-y-5">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h2 id="pd-title" class="text-xl font-extrabold text-teal-900"></h2>
+          <p id="pd-sub" class="text-sm text-slate-500"></p>
+        </div>
+        <button id="pd-close" class="btn px-3 py-1.5 border border-slate-300 bg-white" aria-label="Đóng">✕</button>
+      </div>
+
+      <div id="pd-adherence" class="grid grid-cols-3 gap-3 text-center"></div>
+
+      <div>
+        <h3 class="font-bold mb-2">Đơn thuốc</h3>
+        <ul id="pd-presc" class="space-y-2 text-sm"></ul>
+      </div>
+
+      <form id="presc-form" class="bg-teal-50 rounded-2xl p-4 space-y-3" novalidate>
+        <h3 class="font-bold">Thêm đơn thuốc</h3>
+        <div class="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label for="rx-name" class="block text-sm font-semibold mb-1">Tên thuốc</label>
+            <input id="rx-name" required maxlength="120" class="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white">
+          </div>
+          <div>
+            <label for="rx-dose" class="block text-sm font-semibold mb-1">Liều dùng</label>
+            <input id="rx-dose" maxlength="120" placeholder="VD: 500mg, 10 đơn vị" class="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white">
+          </div>
+        </div>
+        <div>
+          <label for="rx-inst" class="block text-sm font-semibold mb-1">Hướng dẫn</label>
+          <input id="rx-inst" maxlength="500" placeholder="VD: Uống sau bữa ăn" class="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white">
+        </div>
+        <fieldset>
+          <legend class="text-sm font-semibold mb-1">Khung giờ trong ngày</legend>
+          <div id="rx-slots" class="flex flex-wrap gap-2"></div>
+        </fieldset>
+        <label class="flex items-center gap-2 text-sm font-semibold"><input id="rx-insulin" type="checkbox" class="w-4 h-4 accent-teal-600"> Đây là insulin (thuốc tiêm)</label>
+        <p id="rx-error" class="text-red-600 text-sm font-medium hidden-view" role="alert"></p>
+        <button id="rx-submit" type="submit" class="btn hero-grad text-white px-5 py-2">Lưu đơn thuốc</button>
+      </form>
+
+      <div>
+        <h3 class="font-bold mb-2">Đường huyết gần đây</h3>
+        <ul id="pd-sugar" class="text-sm divide-y divide-slate-100"></ul>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/common.js"></script>
+  <script src="/admin.js"></script>
+</body>
+</html>
