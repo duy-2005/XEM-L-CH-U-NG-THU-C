@@ -3,8 +3,22 @@
 
 const SLOTS = { sang: 'Sáng', trua: 'Trưa', chieu: 'Chiều', toi: 'Tối', truoc_ngu: 'Trước khi ngủ' };
 const SLOT_ORDER = ['sang', 'trua', 'chieu', 'toi', 'truoc_ngu'];
-const SYMPTOMS = ['Buồn nôn', 'Hạ đường huyết', 'Chóng mặt', 'Đau đầu', 'Tiêu chảy', 'Phát ban', 'Mệt mỏi', 'Khác'];
+const SYMPTOMS = [
+  'Buồn nôn',
+  'Bủn rủn, vã mồ hôi, đói lả',
+  'Chóng mặt',
+  'Đau đầu',
+  'Đi ngoài nhiều lần',
+  'Nổi mẩn đỏ, ngứa ngáy',
+  'Mệt mỏi',
+  'Khác',
+];
 const SEVERITY = { nhe: 'Nhẹ', vua: 'Vừa', nang: 'Nặng' };
+const SEVERITY_PATIENT = {
+  nhe: 'Nhẹ (Hơi khó chịu, vẫn sinh hoạt bình thường)',
+  vua: 'Vừa (Khá mệt, phải nghỉ ngơi)',
+  nang: 'Nặng (Rất nghiêm trọng, cần gọi bác sĩ)',
+};
 const TOD = { fasting: 'Lúc đói', after_meal: 'Sau ăn' };
 const VN_TZ = 'Asia/Ho_Chi_Minh';
 

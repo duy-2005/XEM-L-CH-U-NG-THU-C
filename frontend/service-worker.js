@@ -41,24 +41,30 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   let data = {};
   try { data = e.data ? e.data.json() : {}; } catch { data = { body: e.data && e.data.text() }; }
-  const title = String(data.title || 'Nhắc uống thuốc');
+  const title = String(data.title || '🚨 Cảnh báo y tế');
+  const targetUrl = data.url || '/admin.html';
   e.waitUntil(
     self.registration.showNotification(title, {
-      body: String(data.body || 'Đã đến giờ dùng thuốc.'),
+      body: String(data.body || 'Có dữ liệu y tế khẩn cấp cần bác sĩ xem xét.'),
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      tag: data.tag || 'dtd-reminder',
-      data: { url: '/index.html' },
+      vibrate: [200, 100, 200, 100, 200],
+      tag: data.tag || 'dtd-alert',
+      renotify: true,
+      data: { url: targetUrl },
     })
   );
 });
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
+  const targetUrl = (e.notification.data && e.notification.data.url) || '/admin.html';
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const c of list) { if ('focus' in c) return c.focus(); }
-      return clients.openWindow('/index.html');
+      for (const c of list) {
+        if (c.url && c.url.includes(targetUrl) && 'focus' in c) return c.focus();
+      }
+      return clients.openWindow(targetUrl);
     })
   );
 });

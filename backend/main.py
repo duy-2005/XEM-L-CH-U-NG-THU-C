@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,7 +17,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 import supa
-from auth import CurrentUser, require_admin
+from auth import CurrentUser, current_user, require_admin
 from config import ROOT, get_settings, get_custom_slot_times, save_custom_slot_times
 
 log = logging.getLogger("app")
@@ -91,6 +91,28 @@ class PatientCreate(BaseModel):
         return v.strip() if isinstance(v, str) else v
 
 
+class PushSubscriptionIn(BaseModel):
+    endpoint: str = Field(min_length=10, max_length=1000)
+    p256dh: str = Field(min_length=10, max_length=500)
+    auth: str = Field(min_length=10, max_length=500)
+
+
+class PatientAdrCreate(BaseModel):
+    symptoms: list[str] = Field(min_length=1, max_length=12)
+    severity: str = Field(pattern=r"^(nhe|vua|nang)$")
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class PatientBloodSugarCreate(BaseModel):
+    level: float = Field(gt=0, le=50)
+    time_of_day: str = Field(pattern=r"^(fasting|after_meal)$")
+
+
+class ApproveUserPayload(BaseModel):
+    user_id: str = Field(min_length=32, max_length=36)
+    action: str = Field(pattern=r"^(approve|reject)$")
+
+
 # ---------------------------------------------------------------- public
 @app.get("/health")
 async def health():
@@ -105,6 +127,8 @@ async def public_config():
         "supabase_url": s.supabase_url,
         "supabase_key": s.supabase_publishable_key,
         "email_domain": s.patient_email_domain,
+        "slot_times": get_custom_slot_times(),
+        "vapid_public_key": s.vapid_public_key,
     }
 
 
@@ -145,9 +169,57 @@ async def reset_password(request: Request, patient_id: str, admin: CurrentUser =
     r = await supa.admin_update_user(patient_id, {"password": s.default_patient_password})
     if r.status_code >= 400:
         raise HTTPException(502, "Không đặt lại được mật khẩu")
-    await supa.rest_patch("profiles", {"id": f"eq.{patient_id}"}, {"must_change_password": True})
+    await supa.rest_patch("profiles", {"id": f"eq.{patient_id}"}, {"must_change_password": True, "is_first_login": True})
     log.info("admin=%s đặt lại mật khẩu bệnh nhân %s", admin.id, patient_id)
     return {"ok": True, "default_password": s.default_patient_password}
+
+
+@app.delete("/api/admin/patients/{patient_id}")
+@limiter.limit("20/minute")
+async def delete_patient(request: Request, patient_id: str, admin: CurrentUser = Depends(require_admin)):
+    try:
+        uuid.UUID(patient_id)
+    except ValueError:
+        raise HTTPException(422, "ID không hợp lệ")
+
+    rows = await supa.rest_get("profiles", {"id": f"eq.{patient_id}", "select": "role,patient_code,full_name"})
+    if not rows or rows[0]["role"] != "patient":
+        raise HTTPException(404, "Không tìm thấy bệnh nhân cần xóa")
+
+    patient_info = rows[0]
+    # 1. Xóa Auth user -> Tự động cascade xóa profile và toàn bộ dữ liệu phụ thuộc
+    del_res = await supa.admin_delete_user(patient_id)
+    if del_res.status_code >= 400:
+        # Dự phòng: dọn sạch profiles nếu auth user không tồn tại
+        await supa.rest_delete("profiles", {"id": f"eq.{patient_id}"})
+
+    log.info("admin=%s đã xóa bệnh nhân id=%s code=%s", admin.id, patient_id, patient_info.get("patient_code"))
+    return {
+        "ok": True,
+        "message": f"Đã xóa bệnh nhân {patient_info.get('full_name')} ({patient_info.get('patient_code')}) thành công",
+    }
+
+
+@app.delete("/api/admin/prescriptions/{prescription_id}")
+@limiter.limit("30/minute")
+async def delete_prescription(request: Request, prescription_id: str, admin: CurrentUser = Depends(require_admin)):
+    try:
+        uuid.UUID(prescription_id)
+    except ValueError:
+        raise HTTPException(422, "ID không hợp lệ")
+
+    rows = await supa.rest_get("prescriptions", {"id": f"eq.{prescription_id}", "select": "id,drug_name,patient_id"})
+    if not rows:
+        raise HTTPException(404, "Không tìm thấy đơn thuốc")
+
+    drug_name = rows[0].get("drug_name", "Thuốc")
+    # Xóa đơn thuốc -> Cascade xóa daily_logs và reminder_log liên quan
+    del_res = await supa.rest_delete("prescriptions", {"id": f"eq.{prescription_id}"})
+    if del_res.status_code >= 400:
+        raise HTTPException(502, "Lỗi khi xóa đơn thuốc")
+
+    log.info("admin=%s đã xóa đơn thuốc %s id=%s", admin.id, drug_name, prescription_id)
+    return {"ok": True, "message": f"Đã xóa đơn thuốc {drug_name}"}
 
 
 @app.get("/api/admin/stats/adr")
@@ -244,6 +316,299 @@ async def test_email(request: Request, body: TestEmailReq, admin: CurrentUser = 
 async def trigger_reminders(body: TriggerReminderReq, _: CurrentUser = Depends(require_admin)):
     res = await notifier.check_and_send_reminders(target_slot=body.slot, force=body.force)
     return res
+
+
+@app.post("/api/admin/push-subscription")
+async def save_push_subscription(body: PushSubscriptionIn, admin: CurrentUser = Depends(require_admin)):
+    """Lưu Web Push subscription của thiết bị Bác sĩ vào cơ sở dữ liệu."""
+    try:
+        await supa.rest_upsert(
+            "push_subscriptions",
+            {
+                "user_id": admin.id,
+                "endpoint": body.endpoint,
+                "p256dh": body.p256dh,
+                "auth": body.auth,
+            },
+            on_conflict="endpoint",
+        )
+        return {"ok": True, "message": "Đã lưu đăng ký thông báo đẩy thành công"}
+    except Exception as e:
+        log.error("Lỗi lưu push subscription: %s", e)
+        raise HTTPException(500, "Không thể lưu thông báo đẩy")
+
+
+# ---------------------------------------------------------------- admin approval workflow
+@app.post("/api/admin/request-approval")
+@limiter.limit("10/minute")
+async def request_admin_approval(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: CurrentUser = Depends(current_user),
+):
+    """Bác sĩ/Dược sĩ đăng nhập bằng Google nhưng chưa được duyệt bấm gửi yêu cầu xin cấp quyền."""
+    if user.role == "admin" and user.is_approved:
+        return {"status": "already_approved", "message": "Tài khoản của bạn đã có quyền Quản trị viên."}
+
+    now_iso = datetime.now(notifier.VN_TZ).isoformat()
+    await supa.rest_update(
+        "profiles",
+        {"id": f"eq.{user.id}"},
+        {
+            "approval_status": "pending",
+            "approval_requested_at": now_iso,
+        },
+    )
+
+    # Sinh token ký số HMAC (có hạn 48 giờ)
+    token = notifier.generate_admin_approval_token(user.id, user.email)
+
+    # Gửi email tới Super Admin trong background
+    background_tasks.add_task(
+        notifier.send_admin_approval_request_email,
+        user.full_name,
+        user.email,
+        token,
+    )
+
+    # Gửi Web Push thông báo tới thiết bị admin
+    background_tasks.add_task(
+        notifier.send_alert_push_to_admins,
+        "🛡️ Yêu cầu duyệt Admin mới",
+        f"{user.full_name or user.email} đang xin cấp quyền Quản trị viên",
+        "/admin.html",
+    )
+
+    return {
+        "status": "pending",
+        "message": "Đã gửi yêu cầu phê duyệt thành công. Vui lòng chờ Quản trị viên chính kiểm tra và phê duyệt.",
+    }
+
+
+@app.get("/api/admin/approve-account", response_class=HTMLResponse)
+async def approve_account_via_email(
+    token: str,
+    background_tasks: BackgroundTasks,
+):
+    """Liên kết 1-click trong email để Super Admin phê duyệt tài khoản."""
+    data = notifier.verify_admin_approval_token(token)
+    if not data:
+        return HTMLResponse(
+            status_code=400,
+            content="""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Liên kết không hợp lệ</title></head>
+<body style="font-family:'Segoe UI',sans-serif;background:#fff1f2;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">
+  <div style="background:white;padding:36px;border-radius:18px;max-width:480px;text-align:center;box-shadow:0 10px 25px rgba(225,29,72,0.15);border-top:6px solid #e11d48;">
+    <div style="font-size:48px;margin-bottom:12px;">❌</div>
+    <h1 style="color:#be123c;font-size:22px;margin:0 0 12px 0;">Liên Kết Không Hợp Lệ Hoặc Đã Hết Hạn</h1>
+    <p style="color:#64748b;font-size:14px;line-height:1.6;">
+      Mã xác nhận phê duyệt đã hết hạn (sau 48h) hoặc không chính xác. Vui lòng kiểm tra lại.
+    </p>
+    <a href="/admin.html" style="display:inline-block;margin-top:20px;background:#e11d48;color:white;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:700;">
+      Vào Trang Quản Trị →
+    </a>
+  </div>
+</body>
+</html>""",
+        )
+
+    uid = data["uid"]
+    email = data["em"]
+    rows = await supa.rest_get("profiles", {"id": f"eq.{uid}", "select": "id,full_name,email,is_approved"})
+    user_name = rows[0].get("full_name", "") if rows else ""
+
+    now_iso = datetime.now(notifier.VN_TZ).isoformat()
+    await supa.rest_update(
+        "profiles",
+        {"id": f"eq.{uid}"},
+        {
+            "role": "admin",
+            "is_approved": True,
+            "approval_status": "approved",
+            "approved_at": now_iso,
+            "must_change_password": False,
+        },
+    )
+
+    # Gửi email chúc mừng tới người dùng
+    if email:
+        background_tasks.add_task(notifier.send_admin_approval_success_email, user_name, email)
+
+    return HTMLResponse(
+        content=f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Phê duyệt thành công</title></head>
+<body style="font-family:'Segoe UI',sans-serif;background:#f0fdfa;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">
+  <div style="background:white;padding:36px;border-radius:18px;max-width:480px;text-align:center;box-shadow:0 10px 25px rgba(13,148,136,0.15);border-top:6px solid #10b981;">
+    <div style="font-size:48px;margin-bottom:12px;">🎉</div>
+    <h1 style="color:#065f46;font-size:22px;margin:0 0 12px 0;">Phê Duyệt Thành Công!</h1>
+    <p style="color:#334155;font-size:15px;line-height:1.6;">
+      Tài khoản <strong>{email}</strong> đã được cấp quyền Quản trị viên (Bác sĩ/Dược sĩ).
+    </p>
+    <a href="/admin.html" style="display:inline-block;margin-top:20px;background:#0d9488;color:white;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:700;">
+      Vào Trang Quản Trị →
+    </a>
+  </div>
+</body>
+</html>"""
+    )
+
+
+@app.get("/api/admin/pending-approvals")
+async def list_pending_approvals(admin: CurrentUser = Depends(require_admin)):
+    """Lấy danh sách các tài khoản đang chờ duyệt quyền Admin."""
+    try:
+        rows = await supa.rest_get(
+            "profiles",
+            {
+                "approval_status": "eq.pending",
+                "select": "*",
+            },
+        )
+        return {"pending": rows}
+    except Exception:
+        return {"pending": []}
+
+
+@app.post("/api/admin/approve-user")
+async def approve_or_reject_user(
+    body: ApproveUserPayload,
+    background_tasks: BackgroundTasks,
+    admin: CurrentUser = Depends(require_admin),
+):
+    """Phê duyệt hoặc từ chối yêu cầu cấp quyền Admin trực tiếp từ Dashboard."""
+    rows = await supa.rest_get("profiles", {"id": f"eq.{body.user_id}", "select": "id,full_name,email"})
+    if not rows:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy tài khoản")
+
+    target_user = rows[0]
+    now_iso = datetime.now(notifier.VN_TZ).isoformat()
+
+    if body.action == "approve":
+        await supa.rest_update(
+            "profiles",
+            {"id": f"eq.{body.user_id}"},
+            {
+                "role": "admin",
+                "is_approved": True,
+                "approval_status": "approved",
+                "approved_at": now_iso,
+                "must_change_password": False,
+            },
+        )
+        if target_user.get("email"):
+            background_tasks.add_task(
+                notifier.send_admin_approval_success_email,
+                target_user.get("full_name", ""),
+                target_user["email"],
+            )
+        return {"status": "ok", "message": f"Đã phê duyệt quyền Admin cho {target_user.get('email', body.user_id)}."}
+    else:
+        await supa.rest_update(
+            "profiles",
+            {"id": f"eq.{body.user_id}"},
+            {
+                "is_approved": False,
+                "approval_status": "rejected",
+            },
+        )
+        return {"status": "ok", "message": "Đã từ chối yêu cầu."}
+
+
+# ---------------------------------------------------------------- patient endpoints (gửi ADR & Đường huyết)
+@app.post("/api/patient/adr", status_code=201)
+@limiter.limit("20/minute")
+async def submit_patient_adr(
+    request: Request,
+    body: PatientAdrCreate,
+    bg: BackgroundTasks,
+    user: CurrentUser = Depends(current_user),
+):
+    """Bệnh nhân báo cáo phản ứng bất thường (ADR) -> Lưu và gửi cảnh báo tới Bác sĩ."""
+    cur_date = datetime.now(VN_TZ).date().isoformat()
+    adr_row = {
+        "patient_id": user.id,
+        "date": cur_date,
+        "symptoms": body.symptoms,
+        "severity": body.severity,
+        "description": body.description,
+        "is_reviewed": False,
+    }
+    r = await supa.rest_post("adr_reports", adr_row)
+    if r.status_code >= 400:
+        raise HTTPException(502, "Không thể lưu báo cáo triệu chứng")
+
+    # Lấy tên và mã bệnh nhân để hiển thị cảnh báo
+    prof_rows = await supa.rest_get("profiles", {"id": f"eq.{user.id}", "select": "full_name,patient_code"})
+    p_name = prof_rows[0].get("full_name") if prof_rows else "Bệnh nhân"
+    p_code = prof_rows[0].get("patient_code") if prof_rows else "—"
+
+    sev_map = {"nhe": "Nhẹ", "vua": "Vừa", "nang": "NẶNG"}
+    alert_title = f"Báo cáo ADR ({sev_map.get(body.severity, body.severity)})"
+    details = f"Triệu chứng: {', '.join(body.symptoms)}."
+    if body.description:
+        details += f" Chi tiết: {body.description}"
+
+    bg.add_task(
+        notifier.trigger_critical_alerts,
+        alert_title=alert_title,
+        patient_name=p_name,
+        patient_code=p_code,
+        details=details,
+        recorded_time=datetime.now(VN_TZ).strftime("%H:%M:%S %d/%m/%Y"),
+    )
+
+    return {"ok": True, "message": "Đã gửi báo cáo triệu chứng tới Bác sĩ thành công"}
+
+
+@app.post("/api/patient/blood-sugar", status_code=201)
+@limiter.limit("30/minute")
+async def submit_patient_blood_sugar(
+    request: Request,
+    body: PatientBloodSugarCreate,
+    bg: BackgroundTasks,
+    user: CurrentUser = Depends(current_user),
+):
+    """Bệnh nhân ghi nhận chỉ số đường huyết -> Lưu và phát cảnh báo khẩn nếu vượt ngưỡng nguy hiểm."""
+    cur_date = datetime.now(VN_TZ).date().isoformat()
+    sugar_row = {
+        "patient_id": user.id,
+        "date": cur_date,
+        "level": body.level,
+        "time_of_day": body.time_of_day,
+    }
+    r = await supa.rest_post("blood_sugar_logs", sugar_row)
+    if r.status_code >= 400:
+        raise HTTPException(502, "Không thể lưu chỉ số đường huyết")
+
+    # Kiểm tra ngưỡng nguy hiểm: > 13.9 mmol/L (250 mg/dL) hoặc hạ đường huyết < 3.9 mmol/L
+    is_high = body.level > 13.9
+    is_low = body.level < 3.9
+
+    if is_high or is_low:
+        prof_rows = await supa.rest_get("profiles", {"id": f"eq.{user.id}", "select": "full_name,patient_code"})
+        p_name = prof_rows[0].get("full_name") if prof_rows else "Bệnh nhân"
+        p_code = prof_rows[0].get("patient_code") if prof_rows else "—"
+        tod_text = "Lúc đói (Sáng sớm)" if body.time_of_day == "fasting" else "Sau ăn 2 giờ"
+
+        if is_high:
+            alert_title = f"ĐƯỜNG HUYẾT CAO NGUY HIỂM ({body.level} mmol/L)"
+            details = f"Chỉ số: {body.level} mmol/L (> 13.9 mmol/L ~ 250 mg/dL). Thời điểm: {tod_text}."
+        else:
+            alert_title = f"HẠ ĐƯỜNG HUYẾT NGUY HIỂM ({body.level} mmol/L)"
+            details = f"Chỉ số: {body.level} mmol/L (< 3.9 mmol/L - nguy cơ hôn mê). Thời điểm: {tod_text}."
+
+        bg.add_task(
+            notifier.trigger_critical_alerts,
+            alert_title=alert_title,
+            patient_name=p_name,
+            patient_code=p_code,
+            details=details,
+            recorded_time=datetime.now(VN_TZ).strftime("%H:%M:%S %d/%m/%Y"),
+        )
+
+    return {"ok": True, "message": "Đã lưu chỉ số đường huyết"}
 
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")

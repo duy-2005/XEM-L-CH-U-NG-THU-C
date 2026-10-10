@@ -15,8 +15,23 @@ create table if not exists public.profiles (
   phone                text check (phone is null or char_length(phone) <= 20),
   email                text check (email is null or char_length(email) <= 200),
   must_change_password boolean not null default true,
+  is_first_login       boolean not null default true,
+  is_approved          boolean not null default false,
+  approval_status      text not null default 'none' check (approval_status in ('none','pending','approved','rejected')),
+  approval_requested_at timestamptz,
+  approved_at          timestamptz,
   created_at           timestamptz not null default now()
 );
+
+-- Đảm bảo tương thích nếu bảng đã tồn tại trước đó:
+alter table public.profiles add column if not exists is_first_login boolean not null default true;
+alter table public.profiles add column if not exists is_approved boolean not null default false;
+alter table public.profiles add column if not exists approval_status text not null default 'none';
+alter table public.profiles add column if not exists approval_requested_at timestamptz;
+alter table public.profiles add column if not exists approved_at timestamptz;
+
+-- Đánh dấu các admin hiện có là đã được duyệt:
+update public.profiles set is_approved = true, approval_status = 'approved' where role = 'admin' and is_approved is false;
 
 create table if not exists public.prescriptions (
   id          uuid primary key default gen_random_uuid(),
@@ -108,28 +123,36 @@ language sql stable security definer
 set search_path = public
 as $$
   select exists (
-    select 1 from public.profiles where id = auth.uid() and role = 'admin'
+    select 1 from public.profiles where id = auth.uid() and role = 'admin' and is_approved is true
   );
 $$;
 revoke all on function public.is_admin() from public, anon;
 grant execute on function public.is_admin() to authenticated;
 
--- Tự tạo profile khi có user mới. LUÔN là 'patient' (bỏ qua mọi metadata về role).
+-- Tự tạo profile khi có user mới. Mặc định là 'patient', chưa duyệt (bỏ qua mọi metadata về role).
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, role, patient_code, full_name, phone, email)
+  insert into public.profiles (
+    id, role, patient_code, full_name, phone, email, is_first_login, is_approved, approval_status
+  )
   values (
     new.id,
     'patient',
     nullif(new.raw_user_meta_data->>'patient_code',''),
-    coalesce(left(new.raw_user_meta_data->>'full_name',120), ''),
+    coalesce(nullif(left(new.raw_user_meta_data->>'full_name',120),''), nullif(left(new.raw_user_meta_data->>'name',120),''), ''),
     nullif(left(new.raw_user_meta_data->>'phone',20),''),
-    nullif(left(new.raw_user_meta_data->>'contact_email',200),'')
-  );
+    coalesce(nullif(left(new.raw_user_meta_data->>'contact_email',200),''), new.email),
+    true,
+    false,
+    'none'
+  )
+  on conflict (id) do update set
+    email = coalesce(public.profiles.email, excluded.email),
+    full_name = case when public.profiles.full_name = '' then excluded.full_name else public.profiles.full_name end;
   return new;
 end;
 $$;
@@ -139,7 +162,7 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Chặn người dùng (qua API client) tự đổi role / mã bệnh nhân / id.
+-- Chặn người dùng (qua API client) tự đổi role / mã bệnh nhân / id / cờ duyệt.
 -- Khi chạy bằng SQL Editor hoặc service key thì auth.uid() là null → được phép
 -- (đây là cách duy nhất để nâng một tài khoản lên admin).
 create or replace function public.protect_profile_fields()
@@ -150,8 +173,11 @@ begin
   if auth.uid() is not null then
     if new.role is distinct from old.role
        or new.patient_code is distinct from old.patient_code
-       or new.id is distinct from old.id then
-      raise exception 'Không được phép thay đổi vai trò hoặc mã bệnh nhân';
+       or new.id is distinct from old.id
+       or new.is_approved is distinct from old.is_approved
+       or new.approval_status is distinct from old.approval_status
+       or new.approved_at is distinct from old.approved_at then
+      raise exception 'Không được phép thay đổi vai trò hoặc trạng thái phê duyệt';
     end if;
   end if;
   return new;
@@ -286,7 +312,7 @@ create policy push_own_all on public.push_subscriptions
 revoke all on all tables in schema public from anon;
 revoke all on all tables in schema public from authenticated;
 
-grant select, update (full_name, phone, email, must_change_password) on public.profiles to authenticated;
+grant select, update (full_name, phone, email, must_change_password, is_first_login) on public.profiles to authenticated;
 grant select, insert, update, delete on public.prescriptions to authenticated;
 grant select, insert, update on public.daily_logs to authenticated;
 grant select, insert, update on public.adr_reports to authenticated;

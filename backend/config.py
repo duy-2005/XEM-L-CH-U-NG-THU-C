@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     # Cấu hình Gmail SMTP
     gmail_user: str = ""
     gmail_app_password: str = ""
+    doctor_alert_email: str = ""
+
+    # Cấu hình Web Push (VAPID)
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:admin@example.com"
 
     # Giờ nhắc thuốc mặc định (HH:MM) - có thể chỉnh trong .env
     reminder_time_sang: str = "07:00"

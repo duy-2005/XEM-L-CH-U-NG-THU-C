@@ -63,6 +63,10 @@ Kéo xuống mục **Environment Variables**, bấm **Add Environment Variable**
 | `SUPABASE_PUBLISHABLE_KEY` | *Khóa công khai sb_publishable_... của bạn* |
 | `GMAIL_USER` | `damduy800@gmail.com` |
 | `GMAIL_APP_PASSWORD` | `hxixitwkrkszvwnk` |
+| `DOCTOR_ALERT_EMAIL` | `damduy800@gmail.com` |
+| `VAPID_PUBLIC_KEY` | `BA44fPa2speh-4U6ekxP7qyNK-KhVqisJNsNu3DXwvEKyNFQIu6MzuaIdqA4kjRRf3TlcMc53hvzubgsfkePNr0` |
+| `VAPID_PRIVATE_KEY` | `deOKFKXYAQSwmSKnKsz6NjR7k2AF3LA661kHyUyi9tc` |
+| `VAPID_SUBJECT` | `mailto:damduy800@gmail.com` |
 | `APP_URL` | `https://TÊN-APP-CỦA-BẠN.onrender.com` *(chính là URL mà Render cấp ở đầu trang)* |
 | `ALLOWED_ORIGINS` | `https://TÊN-APP-CỦA-BẠN.onrender.com` |
 | `CRON_SECRET` | *Một chuỗi ký tự bí mật tùy bạn đặt (ví dụ: `duy_cron_secret_2026`)* |

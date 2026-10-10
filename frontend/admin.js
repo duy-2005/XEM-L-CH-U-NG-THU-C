@@ -1,46 +1,71 @@
 /* Trang quản trị – bác sĩ / dược sĩ */
 'use strict';
 
-let sb, me, patients = [], currentPatient = null, pollTimer;
+let sb, cfg, me, patients = [], currentPatient = null, pollTimer;
 const $ = (id) => document.getElementById(id);
 
 function showView(name) {
-  for (const v of ['loading', 'login', 'app']) show($('view-' + v), v === name);
+  for (const v of ['loading', 'login', 'app', 'approval']) show($('view-' + v), v === name);
 }
 
 /* ---------------------------------------------------------------- khởi động */
 async function boot() {
+  registerServiceWorker();
   try {
-    const cfg = await loadConfig();
+    cfg = await loadConfig();
     sb = supabase.createClient(cfg.supabase_url, cfg.supabase_key);
   } catch (e) { $('view-loading').textContent = e.message; return; }
 
   buildSlotChoices();
   bindEvents();
+  checkAndInitPushStatus();
   const { data } = await sb.auth.getSession();
   if (data.session) await afterLogin(); else showView('login');
 }
 
 async function afterLogin() {
   const { data: u } = await sb.auth.getUser();
-  const id = u && u.user ? u.user.id : '';
-  const { data, error } = await sb.from('profiles').select('*').eq('id', id).maybeSingle();
-  if (error || !data || data.role !== 'admin') {
+  const user = u && u.user;
+  if (!user) {
     await sb.auth.signOut();
     showView('login');
-    setError($('login-error'), 'Tài khoản này không có quyền quản trị.');
     return;
   }
+
+  const id = user.id;
+  let { data, error } = await sb.from('profiles').select('*').eq('id', id).maybeSingle();
+  if (!data) {
+    // Có thể profile đang được tạo bởi database trigger khi tài khoản Google đăng nhập lần đầu
+    await new Promise((r) => setTimeout(r, 800));
+    const retry = await sb.from('profiles').select('*').eq('id', id).maybeSingle();
+    data = retry.data;
+  }
+
+  // Bắt buộc tài khoản phải có quyền Admin VÀ đã được phê duyệt
+  const isApprovedAdmin = data && data.role === 'admin' && (data.is_approved === true || data.is_approved === undefined);
+  if (!isApprovedAdmin) {
+    showView('approval');
+    renderApprovalView(user, data);
+    return;
+  }
+
   me = data;
   $('admin-name').textContent = me.full_name || 'Quản trị viên';
   showView('app');
   switchView('alerts');
+  loadApprovalsBadge();
   clearInterval(pollTimer);
   pollTimer = setInterval(() => { if (!document.hidden && !$('v-alerts').classList.contains('hidden-view')) loadAlerts(true); }, 60000);
 }
 
 function bindEvents() {
-  $('login-form').addEventListener('submit', onLogin);
+  if ($('google-login-btn')) {
+    $('google-login-btn').addEventListener('click', onGoogleLogin);
+  }
+  if ($('approval-refresh-btn')) $('approval-refresh-btn').addEventListener('click', () => afterLogin());
+  if ($('approval-logout-btn')) $('approval-logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); showView('login'); });
+  if ($('refresh-approvals')) $('refresh-approvals').addEventListener('click', () => loadApprovals());
+
   $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
   document.querySelectorAll('.nav-btn').forEach((b) => b.addEventListener('click', () => switchView(b.dataset.view)));
   $('refresh-alerts').addEventListener('click', () => loadAlerts());
@@ -55,6 +80,100 @@ function bindEvents() {
   $('slot-times-form').addEventListener('submit', onSaveSlotTimes);
   $('test-email-form').addEventListener('submit', onTestEmail);
   $('trigger-reminders-btn').addEventListener('click', onTriggerReminders);
+  if ($('btn-push-toggle')) $('btn-push-toggle').addEventListener('click', onTogglePush);
+}
+
+/* ---------------------------------------------------------------- Web Push Notifications */
+function urlB64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+async function checkAndInitPushStatus() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    const btn = $('btn-push-toggle');
+    if (btn) btn.classList.add('hidden-view');
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    updatePushBtnUI(!!sub);
+  } catch (e) {
+    console.error('Lỗi kiểm tra push status:', e);
+  }
+}
+
+function updatePushBtnUI(isSubscribed) {
+  const btn = $('btn-push-toggle');
+  const txt = $('push-btn-text');
+  if (!btn || !txt) return;
+  if (isSubscribed) {
+    txt.textContent = '✓ Đã nhận thông báo';
+    btn.className = 'btn w-full text-xs px-3 py-2 bg-emerald-600 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-sm';
+  } else {
+    txt.textContent = 'Bật thông báo đẩy';
+    btn.className = 'btn w-full text-xs px-3 py-2 bg-white/20 hover:bg-white/30 text-white font-bold rounded-xl flex items-center justify-center gap-1.5';
+  }
+}
+
+async function onTogglePush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    toast('Trình duyệt không hỗ trợ Web Push', 'error');
+    return;
+  }
+  const reg = await navigator.serviceWorker.ready;
+  const existingSub = await reg.pushManager.getSubscription();
+
+  if (existingSub) {
+    toast('Thiết bị này đã được kích hoạt nhận thông báo đẩy!');
+    return;
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    toast('Bạn đã từ chối quyền thông báo trên trình duyệt', 'error');
+    return;
+  }
+
+  if (!cfg || !cfg.vapid_public_key) {
+    toast('Chưa cấu hình VAPID_PUBLIC_KEY trên máy chủ', 'error');
+    return;
+  }
+
+  try {
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8Array(cfg.vapid_public_key),
+    });
+
+    const p256dhKey = sub.getKey('p256dh');
+    const authKey = sub.getKey('auth');
+
+    const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(p256dhKey)));
+    const auth = btoa(String.fromCharCode.apply(null, new Uint8Array(authKey)));
+
+    await api('/api/admin/push-subscription', {
+      method: 'POST',
+      body: JSON.stringify({
+        endpoint: sub.endpoint,
+        p256dh,
+        auth,
+      }),
+    });
+
+    updatePushBtnUI(true);
+    toast('✓ Đã bật thông báo đẩy trực tiếp thành công cho thiết bị này!');
+  } catch (err) {
+    console.error('Lỗi đăng ký Web Push:', err);
+    toast('Không thể đăng ký nhận thông báo: ' + err.message, 'error');
+  }
 }
 
 function switchView(view) {
@@ -63,11 +182,12 @@ function switchView(view) {
     b.setAttribute('aria-selected', String(on));
     b.classList.toggle('bg-white/20', on);
   });
-  for (const v of ['alerts', 'patients', 'stats', 'reminders']) show($('v-' + v), v === view);
+  for (const v of ['alerts', 'patients', 'stats', 'reminders', 'approvals']) show($('v-' + v), v === view);
   if (view === 'alerts') loadAlerts();
   if (view === 'patients') loadPatients();
   if (view === 'stats') loadStats();
   if (view === 'reminders') loadReminderSettings();
+  if (view === 'approvals') loadApprovals();
 }
 
 /* ---------------------------------------------------------------- API */
@@ -85,19 +205,101 @@ async function api(path, opts = {}) {
   return body;
 }
 
-/* ---------------------------------------------------------------- đăng nhập */
-async function onLogin(e) {
-  e.preventDefault();
-  setError($('login-error'), '');
-  const email = $('login-email').value.trim();
-  const password = $('login-password').value;
-  if (!email || !password) { setError($('login-error'), 'Vui lòng nhập email và mật khẩu'); return; }
-  const btn = $('login-submit'); btn.disabled = true; btn.textContent = 'Đang đăng nhập…';
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  btn.disabled = false; btn.textContent = 'Đăng nhập';
-  if (error) { setError($('login-error'), 'Email hoặc mật khẩu không đúng'); return; }
-  $('login-password').value = '';
-  await afterLogin();
+/* ---------------------------------------------------------------- đăng nhập Google */
+function restoreGoogleBtnUI(btn) {
+  if (!btn) return;
+  btn.innerHTML = `
+    <svg class="w-5 h-5" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+    </svg>
+    <span class="text-base text-slate-700">Đăng nhập với Google</span>
+  `;
+}
+
+function showGoogleProviderNotEnabledHelp() {
+  const errBox = $('login-error');
+  if (!errBox) return;
+  errBox.innerHTML = `
+    <div class="font-bold text-red-800 text-sm flex items-center gap-1.5">
+      <span>⚠️</span>
+      <span>Google Provider chưa được bật trên Supabase</span>
+    </div>
+    <p class="text-xs text-red-700 mt-1">
+      Supabase trả về lỗi <code>Unsupported provider: provider is not enabled</code> vì dự án chưa kích hoạt Google Auth.
+    </p>
+    <div class="mt-2 pt-2 border-t border-red-200 text-xs text-slate-700 space-y-1">
+      <p class="font-bold">Cách kích hoạt ngay trong 1 phút:</p>
+      <ol class="list-decimal pl-4 space-y-1">
+        <li>Mở <a href="https://supabase.com/dashboard/project/sbejexjtbdhaphrpbmra/auth/providers" target="_blank" class="text-teal-700 font-bold underline">Supabase Dashboard → Providers → Google</a>.</li>
+        <li>Gạt bật <strong>Enable Sign in with Google</strong> sang <strong>ON</strong>.</li>
+        <li>Điền <strong>Client ID</strong> và <strong>Client Secret</strong> từ Google Cloud Console rồi bấm <strong>Save</strong>.</li>
+      </ol>
+    </div>
+  `;
+  errBox.classList.remove('hidden-view');
+}
+
+async function onGoogleLogin() {
+  const btn = $('google-login-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `
+      <svg class="animate-spin w-5 h-5 text-teal-600" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+      </svg>
+      <span>Đang kết nối Google…</span>
+    `;
+  }
+  const errBox = $('login-error');
+  if (errBox) {
+    errBox.textContent = '';
+    errBox.classList.add('hidden-view');
+  }
+
+  try {
+    const { data, error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + '/admin.html',
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error) {
+      if (btn) { btn.disabled = false; restoreGoogleBtnUI(btn); }
+      if (error.message && error.message.includes('not enabled')) {
+        showGoogleProviderNotEnabledHelp();
+      } else {
+        setError($('login-error'), 'Lỗi xác thực Google: ' + error.message);
+      }
+      return;
+    }
+
+    if (data && data.url) {
+      // Kiểm tra trước phản hồi của Supabase để chặn văng ra trang raw JSON lỗi
+      try {
+        const testRes = await fetch(data.url, { method: 'GET' });
+        if (!testRes.ok) {
+          const body = await testRes.json().catch(() => ({}));
+          if (body.msg && body.msg.includes('provider is not enabled')) {
+            if (btn) { btn.disabled = false; restoreGoogleBtnUI(btn); }
+            showGoogleProviderNotEnabledHelp();
+            return;
+          }
+        }
+      } catch (_) {
+        // Đã kích hoạt và redirect sang accounts.google.com (bị CORS chặn ở fetch ngầm là bình thường)
+      }
+      window.location.href = data.url;
+    }
+  } catch (err) {
+    if (btn) { btn.disabled = false; restoreGoogleBtnUI(btn); }
+    setError($('login-error'), err.message || 'Lỗi kết nối');
+  }
 }
 
 /* ---------------------------------------------------------------- cảnh báo */
@@ -174,7 +376,23 @@ function renderPatients() {
         : h('span', { class: 'text-xs bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5 font-semibold' }, 'Đang dùng')),
       h('td', { class: 'p-3 text-right whitespace-nowrap' },
         h('button', { class: 'btn px-3 py-1.5 bg-teal-600 text-white text-xs mr-1', onclick: () => openPatient(p) }, 'Chi tiết / Kê đơn'),
-        h('button', { class: 'btn px-3 py-1.5 border border-slate-300 bg-white text-xs', onclick: () => resetPassword(p) }, 'Đặt lại MK'))));
+        h('button', { class: 'btn px-3 py-1.5 border border-slate-300 bg-white text-xs mr-1', onclick: () => resetPassword(p) }, 'Đặt lại MK'),
+        h('button', { class: 'btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold', onclick: () => deletePatient(p) }, '🗑️ Xóa'))));
+  }
+}
+
+async function deletePatient(p) {
+  const confirmMsg = `⚠️ CẢNH BÁO XÓA BỆNH NHÂN:\n\n` +
+    `Bạn có chắc chắn muốn xóa bệnh nhân "${p.full_name}" (Mã BN: ${p.patient_code})?\n\n` +
+    `Hành động này sẽ XÓA VĨNH VIỄN toàn bộ tài khoản, đơn thuốc, nhật ký uống thuốc, biểu đồ đường huyết và báo cáo ADR của bệnh nhân này.`;
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const res = await api(`/api/admin/patients/${encodeURIComponent(p.id)}`, { method: 'DELETE' });
+    toast(res.message || 'Đã xóa bệnh nhân thành công');
+    loadPatients();
+  } catch (err) {
+    toast(err.message, 'error');
   }
 }
 
@@ -255,7 +473,9 @@ async function loadPatientDetail() {
         h('p', { class: 'font-bold' }, r.drug_name, r.is_insulin ? ' 💉' : '', r.is_active ? '' : ' (đã ngừng)'),
         h('p', { class: 'text-slate-600' }, [r.dosage, r.frequency.map((s) => SLOTS[s]).join(', ')].filter(Boolean).join(' · ')),
         r.instruction && h('p', { class: 'text-xs text-slate-400' }, r.instruction)),
-      r.is_active && h('button', { class: 'btn px-3 py-1.5 text-xs border border-red-200 text-red-600 bg-red-50 shrink-0', onclick: () => stopPrescription(r.id) }, 'Ngừng thuốc')));
+      h('div', { class: 'flex items-center gap-1.5 shrink-0' },
+        r.is_active && h('button', { class: 'btn px-2.5 py-1.5 text-xs border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100', onclick: () => stopPrescription(r.id) }, 'Ngừng thuốc'),
+        h('button', { class: 'btn px-2.5 py-1.5 text-xs border border-rose-200 text-rose-700 bg-rose-50 font-bold hover:bg-rose-100', onclick: () => deletePrescription(r) }, '🗑️ Xóa đơn'))));
   }
 
   const su = $('pd-sugar');
@@ -296,6 +516,17 @@ async function stopPrescription(id) {
   const { error } = await sb.from('prescriptions').update({ is_active: false }).eq('id', id);
   if (error) { toast('Không cập nhật được', 'error'); return; }
   loadPatientDetail();
+}
+
+async function deletePrescription(rx) {
+  if (!confirm(`Bạn có chắc muốn XÓA VĨNH VIỄN đơn thuốc "${rx.drug_name}"?\nToàn bộ dữ liệu nhật ký dùng thuốc liên quan sẽ bị xóa theo.`)) return;
+  try {
+    const res = await api(`/api/admin/prescriptions/${encodeURIComponent(rx.id)}`, { method: 'DELETE' });
+    toast(res.message || 'Đã xóa đơn thuốc thành công');
+    loadPatientDetail();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 /* ---------------------------------------------------------------- thống kê */
@@ -449,5 +680,153 @@ async function onTriggerReminders() {
   }
   btn.disabled = false; btn.textContent = 'Gửi nhắc ngay';
 }
+
+/* ---------------------------------------------------------------- Phê duyệt Admin */
+function renderApprovalView(user, profile) {
+  if ($('approval-user-email')) $('approval-user-email').textContent = user.email || 'Tài khoản Google';
+  const box = $('approval-box');
+  if (!box) return;
+  const status = profile && profile.approval_status;
+
+  if (status === 'pending') {
+    box.innerHTML = `
+      <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 font-semibold mb-2">
+        ⏳ Yêu cầu cấp quyền đang chờ phê duyệt
+      </div>
+      <p class="text-xs text-slate-500 leading-relaxed">
+        Hệ thống đã gửi thông báo kèm email phê duyệt tới Quản trị viên chính.<br>
+        Ngay khi được phê duyệt, bạn chỉ cần bấm nút <strong>"Kiểm tra lại"</strong> bên dưới để truy cập Dashboard.
+      </p>
+    `;
+  } else if (status === 'rejected') {
+    box.innerHTML = `
+      <div class="p-3 bg-rose-50 rounded-xl border border-rose-200 text-rose-800 font-semibold mb-2">
+        ⛔ Yêu cầu cấp quyền đã bị từ chối
+      </div>
+      <p class="text-xs text-slate-500 mb-3">
+        Nếu bạn là Bác sĩ/Dược sĩ phụ trách, bạn có thể gửi lại yêu cầu xin phê duyệt.
+      </p>
+      <button id="btn-request-approval" type="button" class="btn hero-grad text-white px-4 py-2.5 text-sm w-full font-bold shadow">
+        ✉️ Gửi lại yêu cầu xin phê duyệt
+      </button>
+      <p id="request-approval-msg" class="text-xs font-semibold text-teal-700 mt-2 hidden-view"></p>
+    `;
+    bindRequestApprovalBtn();
+  } else {
+    box.innerHTML = `
+      <p class="text-slate-600 mb-3 leading-relaxed">
+        Tài khoản Google này chưa có quyền Quản trị viên. Bạn có muốn gửi thông báo email xin Quản trị viên chính phê duyệt cấp quyền?
+      </p>
+      <button id="btn-request-approval" type="button" class="btn hero-grad text-white px-4 py-2.5 text-sm w-full font-bold shadow">
+        ✉️ Gửi yêu cầu xin phê duyệt quyền Admin
+      </button>
+      <p id="request-approval-msg" class="text-xs font-semibold text-teal-700 mt-2 hidden-view"></p>
+    `;
+    bindRequestApprovalBtn();
+  }
+}
+
+function bindRequestApprovalBtn() {
+  const btn = $('btn-request-approval');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Đang gửi yêu cầu…';
+    try {
+      const res = await api('/api/admin/request-approval', { method: 'POST' });
+      const msg = $('request-approval-msg');
+      if (msg) {
+        msg.textContent = '✅ ' + (res.message || 'Đã gửi yêu cầu thành công!');
+        msg.classList.remove('hidden-view');
+      }
+      setTimeout(() => afterLogin(), 1500);
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Thử lại';
+      alert('Lỗi: ' + (err.message || 'Không thể gửi yêu cầu'));
+    }
+  });
+}
+
+async function loadApprovalsBadge() {
+  try {
+    const res = await api('/api/admin/pending-approvals');
+    const count = (res.pending || []).length;
+    const badge = $('approval-badge');
+    if (badge) {
+      if (count > 0) {
+        badge.textContent = String(count);
+        badge.classList.remove('hidden-view');
+      } else {
+        badge.classList.add('hidden-view');
+      }
+    }
+  } catch (e) {
+    console.error('Lỗi tải badge phê duyệt:', e);
+  }
+}
+
+async function loadApprovals() {
+  try {
+    const res = await api('/api/admin/pending-approvals');
+    const list = res.pending || [];
+    const badge = $('approval-badge');
+    if (badge) {
+      if (list.length > 0) {
+        badge.textContent = String(list.length);
+        badge.classList.remove('hidden-view');
+      } else {
+        badge.classList.add('hidden-view');
+      }
+    }
+
+    const ul = $('approvals-list');
+    const empty = $('approvals-empty');
+    if (!ul || !empty) return;
+
+    if (list.length === 0) {
+      empty.classList.remove('hidden-view');
+      ul.innerHTML = '';
+      return;
+    }
+    empty.classList.add('hidden-view');
+    ul.innerHTML = list.map((u) => `
+      <li class="py-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="font-bold text-slate-800 text-sm">${escapeHtml(u.full_name || 'Chưa đặt tên')}</p>
+          <p class="text-xs text-slate-500">${escapeHtml(u.email || 'Không có email')} · Yêu cầu: ${formatDate(u.approval_requested_at || u.created_at)}</p>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" class="btn btn-sm bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs" onclick="handleApproveUser('${u.id}', 'approve')">
+            ✔ Phê duyệt
+          </button>
+          <button type="button" class="btn btn-sm bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold px-3 py-1.5 rounded-lg text-xs border border-rose-200" onclick="handleApproveUser('${u.id}', 'reject')">
+            ✖ Từ chối
+          </button>
+        </div>
+      </li>
+    `).join('');
+  } catch (e) {
+    toast('Lỗi tải danh sách phê duyệt: ' + e.message, 'error');
+  }
+}
+
+window.handleApproveUser = async function (userId, action) {
+  const promptMsg = action === 'approve'
+    ? 'Phê duyệt tài khoản này làm Quản trị viên (Bác sĩ/Dược sĩ)?'
+    : 'Từ chối yêu cầu cấp quyền này?';
+  if (!confirm(promptMsg)) return;
+
+  try {
+    const res = await api('/api/admin/approve-user', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, action }),
+    });
+    toast(res.message || 'Thao tác thành công', 'success');
+    await loadApprovals();
+  } catch (err) {
+    toast('Lỗi: ' + err.message, 'error');
+  }
+};
 
 boot();

@@ -126,7 +126,14 @@ async function boot() {
     $('view-loading').textContent = e.message;
     return;
   }
-  sb = supabase.createClient(cfg.supabase_url, cfg.supabase_key);
+  sb = supabase.createClient(cfg.supabase_url, cfg.supabase_key, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: window.localStorage,
+    },
+  });
   buildAdrForm();
   bindEvents();
   const { data } = await sb.auth.getSession();
@@ -144,7 +151,9 @@ async function afterLogin() {
     setError($('login-error'), 'Tài khoản bác sĩ/dược sĩ vui lòng đăng nhập ở trang quản trị.');
     return;
   }
-  if (profile.must_change_password) { showView('change-pw'); return; }
+  // Kiểm tra cờ is_first_login (bắt buộc đổi mật khẩu ở lần đăng nhập đầu)
+  const isFirst = profile.is_first_login !== undefined ? profile.is_first_login : profile.must_change_password;
+  if (isFirst) { showView('change-pw'); return; }
   enterApp();
 }
 
@@ -155,6 +164,25 @@ function enterApp() {
   $('acc-name').textContent = profile.full_name || '';
   showView('app');
   switchTab('today');
+}
+
+/* ---------------------------------------------------------------- API bảo mật gọi backend */
+async function authApi(path, opts = {}) {
+  const { data } = await sb.auth.getSession();
+  if (!data.session) throw new Error('Hết phiên đăng nhập. Vui lòng đăng nhập lại.');
+  const res = await fetch(path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + data.session.access_token,
+      ...(opts.headers || {}),
+    },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof body.detail === 'string' ? body.detail : 'Không thể thực hiện yêu cầu');
+  }
+  return body;
 }
 
 /* ---------------------------------------------------------------- sự kiện */
@@ -213,9 +241,13 @@ async function onChangePassword(e, id1, id2, errId, btnId, first) {
     setError($(errId), 'Không đổi được mật khẩu. Hãy thử mật khẩu khác.');
     return;
   }
-  const { error: e2 } = await sb.from('profiles').update({ must_change_password: false }).eq('id', profile.id);
+  const { error: e2 } = await sb.from('profiles').update({
+    is_first_login: false,
+    must_change_password: false,
+  }).eq('id', profile.id);
   btn.disabled = false;
   if (e2) { setError($(errId), 'Đã đổi mật khẩu nhưng chưa cập nhật hồ sơ, vui lòng thử lại'); return; }
+  profile.is_first_login = false;
   profile.must_change_password = false;
   $(id1).value = ''; $(id2).value = '';
   toast('Đã đổi mật khẩu thành công');
@@ -223,6 +255,24 @@ async function onChangePassword(e, id1, id2, errId, btnId, first) {
 }
 
 /* ---------------------------------------------------------------- thuốc hôm nay */
+function isSlotOverdue(slot) {
+  const slotTimes = (cfg && cfg.slot_times) || {
+    sang: '07:00',
+    trua: '11:30',
+    chieu: '16:30',
+    toi: '19:30',
+    truoc_ngu: '21:30',
+  };
+  const timeStr = slotTimes[slot] || '08:00';
+  const parts = timeStr.split(':').map(Number);
+  const slotMinutes = (parts[0] || 0) * 60 + (parts[1] || 0);
+
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  // Quá hạn hơn 60 phút sau giờ quy định
+  return currentMinutes > slotMinutes + 60;
+}
+
 function getCurrentSlot() {
   const h = new Date().getHours();
   if (h >= 5 && h < 10) return 'sang';
@@ -266,10 +316,12 @@ async function loadToday() {
   const curSlot = getCurrentSlot();
   let taken = 0;
   for (const { p, slot } of items) {
-    const status = done.get(`${p.id}|${slot}`);
+    const rawStatus = done.get(`${p.id}|${slot}`);
+    const isOverdue = !rawStatus && isSlotOverdue(slot);
+    const status = rawStatus || (isOverdue ? 'missed' : null);
     if (status === 'taken') taken++;
     const isCurrent = slot === curSlot && !status;
-    list.append(medCard(p, slot, status, isCurrent));
+    list.append(medCard(p, slot, status, isCurrent, isOverdue));
   }
 
   const total = items.length;
@@ -289,21 +341,23 @@ async function loadToday() {
   _prevTakenCount = taken;
 }
 
-function medCard(p, slot, status, isCurrent) {
+function medCard(p, slot, status, isCurrent, isOverdue) {
   const verbDone = p.is_insulin ? 'Đã tiêm' : 'Đã uống';
   let cardClass = 'card p-5 fade-in transition-all relative overflow-hidden';
   if (status === 'taken') cardClass += ' card-taken';
   else if (status === 'missed') cardClass += ' card-missed';
   else if (isCurrent) cardClass += ' card-current-slot';
 
+  const isMissed = status === 'missed';
   const statusBadge = () => {
     if (status === 'taken') {
       return h('span', { class: 'inline-flex items-center gap-1 text-xs font-black bg-emerald-100 text-emerald-800 rounded-full px-3 py-1 shadow-sm' },
         h('span', {}, '✓'), h('span', {}, verbDone));
     }
-    if (status === 'missed') {
+    if (isMissed) {
+      const txt = isOverdue ? 'Quá giờ (Bỏ lỡ)' : 'Bỏ lỡ';
       return h('span', { class: 'inline-flex items-center gap-1 text-xs font-black bg-rose-100 text-rose-800 rounded-full px-3 py-1 shadow-sm' },
-        h('span', {}, '✕'), h('span', {}, 'Bỏ lỡ'));
+        h('span', {}, '✕'), h('span', {}, txt));
     }
     if (isCurrent) {
       return h('span', { class: 'inline-flex items-center gap-1 text-xs font-black bg-teal-600 text-white rounded-full px-3 py-1 shadow-md shadow-teal-600/30 animate-pulse' },
@@ -312,25 +366,38 @@ function medCard(p, slot, status, isCurrent) {
     return h('span', { class: 'text-xs font-bold text-slate-400 bg-slate-100 rounded-full px-2.5 py-0.5' }, 'Chưa đến');
   };
 
+  const btnTakeText = status === 'taken' ? verbDone : isMissed ? `✓ Uống bù ngay` : verbDone;
+
   const btnTake = h('button', {
     type: 'button',
     class: `btn py-3.5 px-4 text-base font-extrabold flex-1 gap-2 shadow-sm transition-all ${
       status === 'taken' 
         ? 'bg-emerald-600 text-white shadow-emerald-600/25 ring-2 ring-emerald-400' 
+        : isMissed
+        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 ring-2 ring-emerald-400'
         : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
     }`,
     onclick: (ev) => markDose(p, slot, 'taken', ev.currentTarget),
-  }, h('span', { class: 'text-lg' }, '✓'), h('span', {}, verbDone));
+  }, h('span', { class: 'text-lg' }, '✓'), h('span', {}, btnTakeText));
 
   const btnMiss = h('button', {
     type: 'button',
     class: `btn py-3.5 px-3 text-sm font-bold border transition-all ${
-      status === 'missed'
+      status === 'missed' && !isOverdue
         ? 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-400'
         : 'bg-white hover:bg-rose-50/50 text-slate-600 border-slate-200'
     }`,
     onclick: (ev) => markDose(p, slot, 'missed', ev.currentTarget),
   }, 'Bỏ lỡ');
+
+  const recoveryNotice = isMissed ? h('div', { class: 'mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 font-semibold flex items-center justify-between gap-2' },
+    h('span', {}, '⚠️ Đã quá giờ hơn 1 tiếng. Nếu bạn vừa uống thuốc, hãy bấm nút uống bù để xóa cảnh báo bỏ lỡ.'),
+    h('button', {
+      type: 'button',
+      class: 'shrink-0 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow',
+      onclick: (ev) => markDose(p, slot, 'taken', ev.currentTarget),
+    }, 'Uống bù')
+  ) : null;
 
   return h('article', { class: cardClass },
     h('div', { class: 'flex items-start justify-between gap-3 mb-2' },
@@ -343,9 +410,10 @@ function medCard(p, slot, status, isCurrent) {
         p.is_insulin && h('span', { class: 'text-[11px] font-bold bg-amber-100 text-amber-900 rounded-full px-2.5 py-0.5 border border-amber-200' }, '💉 Insulin'))),
     p.instruction && h('p', { class: 'text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100 mt-2 font-medium' },
       h('strong', { class: 'text-slate-700' }, 'Hướng dẫn: '), p.instruction),
+    recoveryNotice,
     h('div', { class: 'flex items-center gap-2.5 mt-4' },
       btnTake,
-      btnMiss));
+      status !== 'taken' && !isOverdue && btnMiss));
 }
 
 async function markDose(p, slot, status, btn) {
@@ -369,19 +437,27 @@ function classifySugar(level, tod) {
 async function onSaveSugar(e) {
   e.preventDefault();
   const level = parseFloat($('sugar-level').value);
-  if (!(level > 0 && level <= 50)) { toast('Chỉ số không hợp lệ', 'error'); return; }
+  if (!(level > 0 && level <= 50)) { toast('Chỉ số không hợp lệ (từ 0.1 đến 50 mmol/L)', 'error'); return; }
   const tod = $('sugar-time').value;
   const btn = $('sugar-submit'); btn.disabled = true;
-  const { error } = await sb.from('blood_sugar_logs').insert({ patient_id: profile.id, date: vnToday(), level, time_of_day: tod });
-  btn.disabled = false;
-  if (error) { toast('Không lưu được, vui lòng thử lại', 'error'); return; }
-  const [text, cls] = classifySugar(level, tod);
-  const hint = $('sugar-hint');
-  hint.textContent = text; hint.className = `text-xs font-bold p-3.5 rounded-2xl ${cls}`;
-  show(hint, true);
-  $('sugar-level').value = '';
-  toast('Đã lưu chỉ số đường huyết');
-  loadSugar();
+
+  try {
+    await authApi('/api/patient/blood-sugar', {
+      method: 'POST',
+      body: JSON.stringify({ level, time_of_day: tod }),
+    });
+    btn.disabled = false;
+    const [text, cls] = classifySugar(level, tod);
+    const hint = $('sugar-hint');
+    hint.textContent = text; hint.className = `text-xs font-bold p-3.5 rounded-2xl ${cls}`;
+    show(hint, true);
+    $('sugar-level').value = '';
+    toast('✓ Đã lưu chỉ số đường huyết thành công');
+    loadSugar();
+  } catch (err) {
+    btn.disabled = false;
+    toast(err.message || 'Không lưu được, vui lòng thử lại', 'error');
+  }
 }
 
 async function loadSugar() {
@@ -423,18 +499,22 @@ async function loadSugar() {
 /* ---------------------------------------------------------------- ADR */
 function buildAdrForm() {
   const box = $('adr-symptoms');
+  box.replaceChildren();
   SYMPTOMS.forEach((s, i) => {
     box.append(h('label', { class: 'flex items-center gap-2.5 border-2 border-slate-200 rounded-2xl p-3 has-[:checked]:bg-teal-50 has-[:checked]:border-teal-600 cursor-pointer transition-all' },
-      h('input', { type: 'checkbox', name: 'symptom', value: s, id: 'sym-' + i, class: 'w-5 h-5 rounded-lg accent-teal-600' }),
+      h('input', { type: 'checkbox', name: 'symptom', value: s, id: 'sym-' + i, class: 'w-5 h-5 rounded-lg accent-teal-600 shrink-0' }),
       h('span', { class: 'font-bold text-sm text-slate-800' }, s)));
   });
   const sev = $('adr-severity');
-  Object.entries(SEVERITY).forEach(([v, label], i) => {
-    sev.append(h('label', { class: 'text-center border-2 border-slate-200 rounded-2xl py-3 font-bold text-sm cursor-pointer transition-all has-[:checked]:bg-teal-700 has-[:checked]:text-white has-[:checked]:border-teal-700' },
-      h('input', { type: 'radio', name: 'severity', value: v, class: 'sr-only', checked: i === 0 }), label));
+  sev.replaceChildren();
+  Object.entries(SEVERITY_PATIENT).forEach(([v, label], i) => {
+    sev.append(h('label', { class: 'flex items-center gap-3 border-2 border-slate-200 rounded-2xl p-3 font-semibold text-sm cursor-pointer transition-all has-[:checked]:bg-teal-700 has-[:checked]:text-white has-[:checked]:border-teal-700' },
+      h('input', { type: 'radio', name: 'severity', value: v, class: 'w-4 h-4 accent-teal-600 shrink-0', checked: i === 0 }),
+      h('span', { class: 'leading-snug' }, label)));
   });
   sev.addEventListener('change', () => {
-    show($('adr-severe-note'), document.querySelector('input[name=severity]:checked').value === 'nang');
+    const checked = document.querySelector('input[name=severity]:checked');
+    show($('adr-severe-note'), checked && checked.value === 'nang');
   });
 }
 
@@ -445,17 +525,23 @@ async function onSubmitAdr(e) {
   const description = $('adr-desc').value.trim();
   setError($('adr-error'), '');
   if (!symptoms.length) { setError($('adr-error'), 'Hãy chọn ít nhất một triệu chứng'); return; }
-  if (symptoms.includes('Khác') && !description) { setError($('adr-error'), 'Vui lòng mô tả triệu chứng “Khác”'); return; }
+  if (symptoms.includes('Khác') && !description) { setError($('adr-error'), 'Vui lòng mô tả chi tiết ở ô ghi chú khi chọn "Khác"'); return; }
   const btn = $('adr-submit'); btn.disabled = true;
-  const { error } = await sb.from('adr_reports').insert({
-    patient_id: profile.id, date: vnToday(), symptoms, severity, description: description || null,
-  });
-  btn.disabled = false;
-  if (error) { toast('Không gửi được báo cáo, vui lòng thử lại', 'error'); return; }
-  toast('Đã gửi báo cáo tới bác sĩ');
-  $('adr-form').reset();
-  show($('adr-severe-note'), false);
-  loadAdrRecent();
+
+  try {
+    await authApi('/api/patient/adr', {
+      method: 'POST',
+      body: JSON.stringify({ symptoms, severity, description: description || null }),
+    });
+    btn.disabled = false;
+    toast('✓ Đã gửi báo cáo triệu chứng tới Bác sĩ');
+    $('adr-form').reset();
+    show($('adr-severe-note'), false);
+    loadAdrRecent();
+  } catch (err) {
+    btn.disabled = false;
+    setError($('adr-error'), err.message || 'Không gửi được báo cáo, vui lòng thử lại');
+  }
 }
 
 async function loadAdrRecent() {

@@ -85,3 +85,22 @@ async def rest_upsert(table: str, body: dict | list[dict], on_conflict: str = ""
     r = await client().post(f"{s.supabase_url}/rest/v1/{table}", json=body, headers=headers, params=params)
     r.raise_for_status()
     return r
+
+
+async def rest_delete(table: str, params: dict[str, str]) -> httpx.Response:
+    """Xóa bản ghi từ PostgREST bảng chỉ định."""
+    s = get_settings()
+    return await client().delete(
+        f"{s.supabase_url}/rest/v1/{table}",
+        params=params,
+        headers=_secret_headers(),
+    )
+
+
+async def admin_delete_user(user_id: str) -> httpx.Response:
+    """Xóa user từ Supabase Auth Admin API (cascade xóa profile và dữ liệu con)."""
+    s = get_settings()
+    return await client().delete(
+        f"{s.supabase_url}/auth/v1/admin/users/{user_id}",
+        headers=_secret_headers(),
+    )
