@@ -50,11 +50,11 @@ app.add_middleware(
 
 CSP = (
     "default-src 'self'; "
-    "script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; "
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; "
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
     "font-src 'self' https://fonts.gstatic.com; "
-    "img-src 'self' data:; "
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co; "
+    "img-src 'self' data: https://*.googleusercontent.com https://lh3.googleusercontent.com; "
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com; "
     "worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 )
 
@@ -125,7 +125,7 @@ async def public_config():
     s = get_settings()
     return {
         "supabase_url": s.supabase_url,
-        "supabase_key": s.supabase_publishable_key,
+        "supabase_key": s.public_key,
         "email_domain": s.patient_email_domain,
         "slot_times": get_custom_slot_times(),
         "vapid_public_key": s.vapid_public_key,

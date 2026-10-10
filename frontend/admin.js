@@ -12,50 +12,76 @@ function showView(name) {
 async function boot() {
   registerServiceWorker();
   try {
+    if (typeof supabase === 'undefined') {
+      throw new Error('Chưa tải được thư viện Supabase (CDN). Vui lòng kiểm tra kết nối mạng.');
+    }
     cfg = await loadConfig();
-    sb = supabase.createClient(cfg.supabase_url, cfg.supabase_key);
-  } catch (e) { $('view-loading').textContent = e.message; return; }
+    sb = supabase.createClient(cfg.supabase_url, cfg.supabase_key, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: window.localStorage,
+      },
+    });
 
-  buildSlotChoices();
-  bindEvents();
-  checkAndInitPushStatus();
-  const { data } = await sb.auth.getSession();
-  if (data.session) await afterLogin(); else showView('login');
+    buildSlotChoices();
+    bindEvents();
+    checkAndInitPushStatus();
+
+    const { data, error } = await sb.auth.getSession();
+    if (error) throw error;
+    if (data && data.session) {
+      await afterLogin();
+    } else {
+      showView('login');
+    }
+  } catch (err) {
+    console.error('Lỗi khởi động admin:', err);
+    renderLoadingError(err.message || 'Không thể khởi động trang quản trị', err.stack);
+  }
 }
 
 async function afterLogin() {
-  const { data: u } = await sb.auth.getUser();
-  const user = u && u.user;
-  if (!user) {
-    await sb.auth.signOut();
+  try {
+    const { data: u, error: uErr } = await sb.auth.getUser();
+    if (uErr) throw uErr;
+    const user = u && u.user;
+    if (!user) {
+      await sb.auth.signOut();
+      showView('login');
+      return;
+    }
+
+    const id = user.id;
+    let { data, error } = await sb.from('profiles').select('*').eq('id', id).maybeSingle();
+    if (!data) {
+      // Có thể profile đang được tạo bởi database trigger khi tài khoản Google đăng nhập lần đầu
+      await new Promise((r) => setTimeout(r, 800));
+      const retry = await sb.from('profiles').select('*').eq('id', id).maybeSingle();
+      data = retry.data;
+    }
+
+    // Bắt buộc tài khoản phải có quyền Admin VÀ đã được phê duyệt
+    const isApprovedAdmin = data && data.role === 'admin' && (data.is_approved === true || data.is_approved === undefined);
+    if (!isApprovedAdmin) {
+      showView('approval');
+      renderApprovalView(user, data);
+      return;
+    }
+
+    me = data;
+    $('admin-name').textContent = me.full_name || 'Quản trị viên';
+    showView('app');
+    switchView('alerts');
+    loadApprovalsBadge();
+    clearInterval(pollTimer);
+    pollTimer = setInterval(() => { if (!document.hidden && !$('v-alerts').classList.contains('hidden-view')) loadAlerts(true); }, 60000);
+  } catch (err) {
+    console.error('Lỗi sau khi đăng nhập:', err);
     showView('login');
-    return;
+    setError($('login-error'), 'Lỗi xác thực hồ sơ: ' + (err.message || 'Vui lòng đăng nhập lại'));
   }
-
-  const id = user.id;
-  let { data, error } = await sb.from('profiles').select('*').eq('id', id).maybeSingle();
-  if (!data) {
-    // Có thể profile đang được tạo bởi database trigger khi tài khoản Google đăng nhập lần đầu
-    await new Promise((r) => setTimeout(r, 800));
-    const retry = await sb.from('profiles').select('*').eq('id', id).maybeSingle();
-    data = retry.data;
-  }
-
-  // Bắt buộc tài khoản phải có quyền Admin VÀ đã được phê duyệt
-  const isApprovedAdmin = data && data.role === 'admin' && (data.is_approved === true || data.is_approved === undefined);
-  if (!isApprovedAdmin) {
-    showView('approval');
-    renderApprovalView(user, data);
-    return;
-  }
-
-  me = data;
-  $('admin-name').textContent = me.full_name || 'Quản trị viên';
-  showView('app');
-  switchView('alerts');
-  loadApprovalsBadge();
-  clearInterval(pollTimer);
-  pollTimer = setInterval(() => { if (!document.hidden && !$('v-alerts').classList.contains('hidden-view')) loadAlerts(true); }, 60000);
 }
 
 function bindEvents() {

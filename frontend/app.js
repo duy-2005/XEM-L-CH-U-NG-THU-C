@@ -118,43 +118,65 @@ function triggerConfetti() {
 
 /* ---------------------------------------------------------------- khởi động */
 async function boot() {
-  initFontSizeControls();
-  registerServiceWorker();
   try {
+    initFontSizeControls();
+    registerServiceWorker();
+    if (typeof supabase === 'undefined') {
+      throw new Error('Chưa tải được thư viện Supabase (CDN). Vui lòng kiểm tra kết nối mạng.');
+    }
     cfg = await loadConfig();
-  } catch (e) {
-    $('view-loading').textContent = e.message;
-    return;
+    sb = supabase.createClient(cfg.supabase_url, cfg.supabase_key, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: window.localStorage,
+      },
+    });
+    buildAdrForm();
+    bindEvents();
+    const { data, error } = await sb.auth.getSession();
+    if (error) throw error;
+    if (data && data.session) {
+      await afterLogin();
+    } else {
+      showView('login');
+    }
+  } catch (err) {
+    console.error('Lỗi khởi động app bệnh nhân:', err);
+    renderLoadingError(err.message || 'Không thể khởi động ứng dụng', err.stack);
   }
-  sb = supabase.createClient(cfg.supabase_url, cfg.supabase_key, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storage: window.localStorage,
-    },
-  });
-  buildAdrForm();
-  bindEvents();
-  const { data } = await sb.auth.getSession();
-  if (data.session) await afterLogin(); else showView('login');
 }
 
 async function afterLogin() {
-  const { data: u } = await sb.auth.getUser();
-  const { data, error } = await sb.from('profiles').select('*').eq('id', u && u.user ? u.user.id : '').maybeSingle();
-  if (error || !data) { await sb.auth.signOut(); showView('login'); return; }
-  profile = data;
-  if (profile.role === 'admin') {
-    await sb.auth.signOut();
+  try {
+    const { data: u, error: uErr } = await sb.auth.getUser();
+    if (uErr) throw uErr;
+    const { data, error } = await sb.from('profiles').select('*').eq('id', u && u.user ? u.user.id : '').maybeSingle();
+    if (error || !data) {
+      await sb.auth.signOut();
+      showView('login');
+      return;
+    }
+    profile = data;
+    if (profile.role === 'admin') {
+      await sb.auth.signOut();
+      showView('login');
+      setError($('login-error'), 'Tài khoản bác sĩ/dược sĩ vui lòng đăng nhập ở trang quản trị (/admin.html).');
+      return;
+    }
+    // Kiểm tra cờ is_first_login (bắt buộc đổi mật khẩu ở lần đăng nhập đầu)
+    const isFirst = profile.is_first_login !== undefined ? profile.is_first_login : profile.must_change_password;
+    if (isFirst) {
+      showView('change-pw');
+      return;
+    }
+    enterApp();
+  } catch (err) {
+    console.error('Lỗi sau khi đăng nhập:', err);
     showView('login');
-    setError($('login-error'), 'Tài khoản bác sĩ/dược sĩ vui lòng đăng nhập ở trang quản trị.');
-    return;
+    setError($('login-error'), 'Lỗi tải thông tin bệnh nhân: ' + (err.message || 'Vui lòng đăng nhập lại'));
   }
-  // Kiểm tra cờ is_first_login (bắt buộc đổi mật khẩu ở lần đăng nhập đầu)
-  const isFirst = profile.is_first_login !== undefined ? profile.is_first_login : profile.must_change_password;
-  if (isFirst) { showView('change-pw'); return; }
-  enterApp();
 }
 
 function enterApp() {

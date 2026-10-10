@@ -16,8 +16,12 @@
 </head>
 <body class="text-slate-800">
   <div id="toast" role="status" aria-live="polite" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] hidden-view px-4 py-3 rounded-xl text-white font-semibold shadow-lg"></div>
-
-  <div id="view-loading" class="min-h-screen flex items-center justify-center text-teal-700 font-semibold">Đang tải…</div>
+  <!-- ĐANG TẢI -->
+  <div id="view-loading" class="min-h-screen flex flex-col items-center justify-center text-teal-700 font-semibold gap-3 px-4 text-center">
+    <div class="w-10 h-10 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin"></div>
+    <p class="text-base font-bold text-slate-700">Đang tải bảng quản trị…</p>
+    <p id="loading-note" class="hidden-view text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 max-w-sm fade-in"></p>
+  </div>
 
   <!-- ĐĂNG NHẬP ADMIN (CHỈ GOOGLE OAUTH) -->
   <main id="view-login" class="hidden-view min-h-screen flex items-center justify-center p-6 bg-slate-50">
