@@ -4,6 +4,33 @@
 let sb, cfg, me, patients = [], currentPatient = null, pollTimer;
 const $ = (id) => document.getElementById(id);
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatDate(isoStr) {
+  if (!isoStr) return 'Mới đây';
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return String(isoStr);
+    return d.toLocaleString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  } catch (e) {
+    return String(isoStr);
+  }
+}
+
 function showView(name) {
   for (const v of ['loading', 'login', 'app', 'approval']) show($('view-' + v), v === name);
 }
@@ -99,10 +126,16 @@ async function afterLogin() {
     me = data;
     $('admin-name').textContent = me.full_name || 'Quản trị viên';
     showView('app');
-    switchView('alerts');
+    const hash = (window.location.hash || '').replace(/^#/, '');
+    const validViews = ['alerts', 'patients', 'stats', 'reminders', 'approvals'];
+    const targetView = validViews.includes(hash) ? hash : 'alerts';
+    switchView(targetView);
     loadApprovalsBadge();
     clearInterval(pollTimer);
-    pollTimer = setInterval(() => { if (!document.hidden && !$('v-alerts').classList.contains('hidden-view')) loadAlerts(true); }, 60000);
+    pollTimer = setInterval(() => {
+      if (!document.hidden && !$('v-alerts').classList.contains('hidden-view')) loadAlerts(true);
+      loadApprovalsBadge();
+    }, 60000);
   } catch (err) {
     console.error('Lỗi sau khi đăng nhập:', err);
     showView('login');
@@ -118,7 +151,13 @@ function bindEvents() {
   if ($('approval-logout-btn')) $('approval-logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); showView('login'); });
   if ($('refresh-approvals')) $('refresh-approvals').addEventListener('click', () => loadApprovals());
 
-  $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+  if ($('logout-btn')) $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+  if ($('logout-btn-desktop')) $('logout-btn-desktop').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+  window.addEventListener('hashchange', () => {
+    const h = (window.location.hash || '').replace(/^#/, '');
+    const validViews = ['alerts', 'patients', 'stats', 'reminders', 'approvals'];
+    if (validViews.includes(h)) switchView(h);
+  });
   document.querySelectorAll('.nav-btn').forEach((b) => b.addEventListener('click', () => switchView(b.dataset.view)));
   $('refresh-alerts').addEventListener('click', () => loadAlerts());
   $('patient-search').addEventListener('input', renderPatients);
@@ -235,6 +274,9 @@ function switchView(view) {
     b.classList.toggle('bg-white/20', on);
   });
   for (const v of ['alerts', 'patients', 'stats', 'reminders', 'approvals']) show($('v-' + v), v === view);
+  if (window.location.hash !== '#' + view) {
+    history.replaceState(null, '', '#' + view);
+  }
   if (view === 'alerts') loadAlerts();
   if (view === 'patients') loadPatients();
   if (view === 'stats') loadStats();
@@ -823,22 +865,28 @@ async function loadApprovals() {
     }
     empty.classList.add('hidden-view');
     ul.innerHTML = list.map((u) => `
-      <li class="py-4 flex flex-wrap items-center justify-between gap-3">
+      <li class="py-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 last:border-b-0">
         <div>
-          <p class="font-bold text-slate-800 text-sm">${escapeHtml(u.full_name || 'Chưa đặt tên')}</p>
-          <p class="text-xs text-slate-500">${escapeHtml(u.email || 'Không có email')} · Yêu cầu: ${formatDate(u.approval_requested_at || u.created_at)}</p>
+          <p class="font-bold text-slate-800 text-sm flex items-center gap-2">
+            <span>👤</span>
+            <span>${escapeHtml(u.full_name || 'Chưa đặt tên')}</span>
+          </p>
+          <p class="text-xs text-slate-500 mt-1">
+            ✉️ <span class="font-medium text-slate-700">${escapeHtml(u.email || 'Không có email')}</span> · 🕒 Gửi lúc: ${formatDate(u.approval_requested_at || u.created_at)}
+          </p>
         </div>
         <div class="flex gap-2">
-          <button type="button" class="btn btn-sm bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs" onclick="handleApproveUser('${u.id}', 'approve')">
+          <button type="button" class="btn btn-sm bg-teal-600 hover:bg-teal-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-sm transition" onclick="handleApproveUser('${u.id}', 'approve')">
             ✔ Phê duyệt
           </button>
-          <button type="button" class="btn btn-sm bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold px-3 py-1.5 rounded-lg text-xs border border-rose-200" onclick="handleApproveUser('${u.id}', 'reject')">
+          <button type="button" class="btn btn-sm bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold px-3 py-2 rounded-xl text-xs border border-rose-200 transition" onclick="handleApproveUser('${u.id}', 'reject')">
             ✖ Từ chối
           </button>
         </div>
       </li>
     `).join('');
   } catch (e) {
+    console.error('Lỗi tải danh sách phê duyệt:', e);
     toast('Lỗi tải danh sách phê duyệt: ' + e.message, 'error');
   }
 }

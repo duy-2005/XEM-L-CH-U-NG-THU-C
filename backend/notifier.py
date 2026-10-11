@@ -443,7 +443,7 @@ async def send_admin_approval_request_email(full_name: str, applicant_email: str
 
     request_time = datetime.now(VN_TZ).strftime("%H:%M:%S %d/%m/%Y")
     approve_url = f"{s.app_url}/api/admin/approve-account?token={token}"
-    dashboard_url = f"{s.app_url}/admin.html"
+    dashboard_url = f"{s.app_url}/admin.html#approvals"
     subject = f"🛡️ [XIN PHÊ DUYỆT ADMIN] Yêu cầu cấp quyền từ {full_name or applicant_email}"
     html_body = make_admin_approval_request_html(full_name, applicant_email, request_time, approve_url, dashboard_url)
     text_body = (

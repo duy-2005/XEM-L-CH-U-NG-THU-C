@@ -83,28 +83,31 @@
 
   <!-- DASHBOARD -->
   <div id="view-app" class="hidden-view min-h-screen lg:flex">
-    <aside class="hero-grad text-white lg:w-64 lg:min-h-screen p-5 flex lg:flex-col gap-4 items-center lg:items-stretch">
-      <div class="flex items-center gap-3">
-        <img src="/icons/icon-192.png" alt="" width="40" height="40" class="rounded-xl">
-        <div>
-          <p class="font-extrabold leading-tight">ĐTĐ – Quản trị</p>
-          <p id="admin-name" class="text-teal-100 text-xs"></p>
+    <aside class="hero-grad text-white lg:w-64 lg:min-h-screen p-4 lg:p-5 flex flex-col gap-3 lg:gap-4 shrink-0">
+      <div class="flex items-center justify-between lg:justify-start gap-3">
+        <div class="flex items-center gap-3">
+          <img src="/icons/icon-192.png" alt="" width="36" height="36" class="rounded-xl shadow-md shrink-0">
+          <div>
+            <p class="font-extrabold leading-tight text-sm lg:text-base">ĐTĐ – Quản trị</p>
+            <p id="admin-name" class="text-teal-100 text-xs truncate max-w-[140px]"></p>
+          </div>
         </div>
+        <button id="logout-btn" class="btn px-3 py-1.5 bg-white/15 hover:bg-white/25 text-xs lg:hidden rounded-lg font-semibold">Đăng xuất</button>
       </div>
-      <nav class="flex lg:flex-col gap-2 lg:mt-6 flex-1" aria-label="Điều hướng">
-        <button class="nav-btn btn text-left px-4 py-2.5 hover:bg-white/15" data-view="alerts" aria-selected="true">🔔 Trung tâm cảnh báo <span id="alert-count" class="ml-1 bg-red-500 text-xs rounded-full px-2 py-0.5 hidden-view"></span></button>
-        <button class="nav-btn btn text-left px-4 py-2.5 hover:bg-white/15" data-view="patients" aria-selected="false">👥 Bệnh nhân</button>
-        <button class="nav-btn btn text-left px-4 py-2.5 hover:bg-white/15" data-view="stats" aria-selected="false">📊 Thống kê ADR</button>
-        <button class="nav-btn btn text-left px-4 py-2.5 hover:bg-white/15" data-view="reminders" aria-selected="false">⏰ Lịch & Email Nhắc</button>
-        <button class="nav-btn btn text-left px-4 py-2.5 hover:bg-white/15" data-view="approvals" aria-selected="false">🛡️ Duyệt Admin <span id="approval-badge" class="ml-1 bg-amber-500 text-xs rounded-full px-2 py-0.5 hidden-view"></span></button>
+      <nav class="flex lg:flex-col gap-1.5 lg:mt-4 overflow-x-auto pb-1 lg:pb-0 scrollbar-none flex-nowrap" aria-label="Điều hướng">
+        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2 hover:bg-white/15 text-xs lg:text-sm font-semibold rounded-xl shrink-0" data-view="alerts" aria-selected="true">🔔 Cảnh báo <span id="alert-count" class="ml-1 bg-red-500 text-xs rounded-full px-2 py-0.5 hidden-view"></span></button>
+        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2 hover:bg-white/15 text-xs lg:text-sm font-semibold rounded-xl shrink-0" data-view="patients" aria-selected="false">👥 Bệnh nhân</button>
+        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2 hover:bg-white/15 text-xs lg:text-sm font-semibold rounded-xl shrink-0" data-view="stats" aria-selected="false">📊 Thống kê</button>
+        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2 hover:bg-white/15 text-xs lg:text-sm font-semibold rounded-xl shrink-0" data-view="reminders" aria-selected="false">⏰ Lịch nhắc</button>
+        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2 hover:bg-white/15 text-xs lg:text-sm font-semibold rounded-xl shrink-0 bg-white/10" data-view="approvals" aria-selected="false">🛡️ Duyệt Admin <span id="approval-badge" class="ml-1 bg-amber-400 text-slate-900 font-bold text-xs rounded-full px-2 py-0.5 hidden-view"></span></button>
       </nav>
-      <div class="pt-2 border-t border-white/20 w-full">
+      <div class="pt-2 border-t border-white/20 hidden lg:block w-full mt-auto space-y-2">
         <button id="btn-push-toggle" type="button" class="btn w-full text-xs px-3 py-2 bg-white/20 hover:bg-white/30 text-white font-bold rounded-xl flex items-center justify-center gap-1.5">
           <span>🔔</span>
           <span id="push-btn-text">Bật thông báo đẩy</span>
         </button>
+        <button id="logout-btn-desktop" class="btn w-full px-4 py-2 bg-white/15 hover:bg-white/25 text-sm rounded-xl font-semibold">Đăng xuất</button>
       </div>
-      <button id="logout-btn" class="btn px-4 py-2.5 bg-white/15 hover:bg-white/25">Đăng xuất</button>
     </aside>
 
     <main class="flex-1 p-5 lg:p-8 max-w-6xl">

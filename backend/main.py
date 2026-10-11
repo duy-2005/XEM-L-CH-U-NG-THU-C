@@ -376,12 +376,17 @@ async def request_admin_approval(
             "profiles",
             {"id": f"eq.{user.id}"},
             {
+                "email": user.email,
                 "approval_status": "pending",
                 "approval_requested_at": now_iso,
             },
         )
     except Exception as e_prof:
         log.warning("Chưa cập nhật được approval_status trong profiles (cần chạy SQL thêm cột): %s", e_prof)
+        try:
+            await supa.rest_update("profiles", {"id": f"eq.{user.id}"}, {"email": user.email})
+        except Exception:
+            pass
 
     # Sinh token ký số HMAC (có hạn 48 giờ)
     token = notifier.generate_admin_approval_token(user.id, user.email)
@@ -394,12 +399,12 @@ async def request_admin_approval(
         token,
     )
 
-    # Gửi Web Push thông báo tới thiết bị admin
+    # Gửi Web Push thông báo tới thiết bị admin kèm đường dẫn thẳng đến tab Duyệt
     background_tasks.add_task(
         notifier.send_alert_push_to_admins,
         "🛡️ Yêu cầu duyệt Admin mới",
         f"{user.full_name or user.email} đang xin cấp quyền Quản trị viên",
-        "/admin.html",
+        "/admin.html#approvals",
     )
 
     return {
