@@ -2,6 +2,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -18,6 +19,17 @@ class Settings(BaseSettings):
     app_url: str = "https://lich-uong-thuoc.onrender.com"
     default_patient_password: str = "123456"
     patient_email_domain: str = "benhnhan.local"
+
+    @field_validator("app_url", mode="after")
+    @classmethod
+    def clean_app_url(cls, v: str) -> str:
+        import os
+        render_url = os.environ.get("RENDER_EXTERNAL_URL", "").strip()
+        if render_url:
+            return render_url.rstrip("/")
+        if not v or "localhost" in v.lower() or "127.0.0.1" in v or "0.0.0.0" in v:
+            return "https://lich-uong-thuoc.onrender.com"
+        return v.strip().rstrip("/")
 
     # Cấu hình Gmail SMTP
     gmail_user: str = "damduy800@gmail.com"

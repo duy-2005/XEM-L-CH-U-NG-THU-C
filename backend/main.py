@@ -738,6 +738,7 @@ async def submit_patient_blood_sugar(
     return {"ok": True, "message": "Đã lưu chỉ số đường huyết"}
 
 
+_UUID = re.compile(r"^[0-9a-fA-F-]{36}$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _VALID_SLOTS = frozenset({"sang", "trua", "chieu", "toi", "truoc_ngu"})
 
