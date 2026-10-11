@@ -29,6 +29,32 @@ async function boot() {
     bindEvents();
     checkAndInitPushStatus();
 
+    // 1. Kiểm tra xem Supabase OAuth có trả về lỗi trên URL hash/query không
+    const hash = window.location.hash.replace(/^#/, '');
+    const hashParams = new URLSearchParams(hash);
+    const queryParams = new URLSearchParams(window.location.search);
+    const authError = hashParams.get('error') || queryParams.get('error');
+    const authCode = hashParams.get('error_code') || queryParams.get('error_code');
+    const authDesc = hashParams.get('error_description') || queryParams.get('error_description');
+
+    if (authError || authDesc) {
+      showView('login');
+      let msg = decodeURIComponent((authDesc || authError).replace(/\+/g, ' '));
+      if (
+        msg.toLowerCase().includes('signups not allowed') ||
+        authCode === 'signup_disabled' ||
+        (authDesc && authDesc.toLowerCase().includes('signup'))
+      ) {
+        msg = '⚠️ Tài khoản Google này chưa có trong hệ thống và Supabase đang TẮT đăng ký mới (Signups not allowed). Quản trị viên cần vào Supabase Dashboard → Authentication → bật "Allow new users to sign up".';
+      }
+      setError($('login-error'), msg);
+      if (window.history && window.history.replaceState) {
+        history.replaceState(null, '', window.location.pathname);
+      }
+      return;
+    }
+
+    // 2. Kiểm tra phiên đăng nhập
     const { data, error } = await sb.auth.getSession();
     if (error) throw error;
     if (data && data.session) {
@@ -291,7 +317,6 @@ async function onGoogleLogin() {
       provider: 'google',
       options: {
         redirectTo: window.location.origin + '/admin.html',
-        skipBrowserRedirect: true,
       },
     });
 
@@ -302,25 +327,6 @@ async function onGoogleLogin() {
       } else {
         setError($('login-error'), 'Lỗi xác thực Google: ' + error.message);
       }
-      return;
-    }
-
-    if (data && data.url) {
-      // Kiểm tra trước phản hồi của Supabase để chặn văng ra trang raw JSON lỗi
-      try {
-        const testRes = await fetch(data.url, { method: 'GET' });
-        if (!testRes.ok) {
-          const body = await testRes.json().catch(() => ({}));
-          if (body.msg && body.msg.includes('provider is not enabled')) {
-            if (btn) { btn.disabled = false; restoreGoogleBtnUI(btn); }
-            showGoogleProviderNotEnabledHelp();
-            return;
-          }
-        }
-      } catch (_) {
-        // Đã kích hoạt và redirect sang accounts.google.com (bị CORS chặn ở fetch ngầm là bình thường)
-      }
-      window.location.href = data.url;
     }
   } catch (err) {
     if (btn) { btn.disabled = false; restoreGoogleBtnUI(btn); }

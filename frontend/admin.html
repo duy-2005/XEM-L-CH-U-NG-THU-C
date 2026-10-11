@@ -62,18 +62,22 @@
   </main>
 
   <!-- MÀN HÌNH CHỜ DUYỆT ADMIN -->
-  <main id="view-approval" class="card max-w-md w-full p-8 mx-auto my-12 text-center hidden-view">
-    <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">⏳</div>
-    <h1 class="text-xl font-bold text-slate-900 mb-2">Tài khoản chưa được phê duyệt</h1>
-    <p class="text-sm text-slate-600 mb-4">
-      Tài khoản <strong id="approval-user-email" class="text-slate-800"></strong> chưa được cấp quyền Quản trị viên (Bác sĩ/Dược sĩ).
-    </p>
-    <div id="approval-box" class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm mb-6 space-y-3">
-      <!-- Nút gửi xin duyệt hoặc thông báo chờ -->
-    </div>
-    <div class="flex gap-3">
-      <button id="approval-refresh-btn" type="button" class="btn border border-slate-300 bg-white hover:bg-slate-50 flex-1 py-2.5 text-sm font-semibold">↻ Kiểm tra lại</button>
-      <button id="approval-logout-btn" type="button" class="btn bg-slate-200 hover:bg-slate-300 text-slate-700 flex-1 py-2.5 text-sm font-semibold">Đăng xuất</button>
+  <main id="view-approval" class="hidden-view min-h-screen flex items-center justify-center p-6 bg-slate-50">
+    <div class="card p-8 w-full max-w-md text-center space-y-5 fade-in shadow-xl border border-slate-200/80">
+      <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-sm">⏳</div>
+      <div>
+        <h1 class="text-xl font-extrabold text-slate-900 mb-1">Tài khoản chưa được phê duyệt</h1>
+        <p class="text-xs text-slate-500">
+          Tài khoản Google <strong id="approval-user-email" class="text-slate-800"></strong> chưa được cấp quyền Quản trị viên (Bác sĩ/Dược sĩ).
+        </p>
+      </div>
+      <div id="approval-box" class="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm space-y-3 text-left">
+        <!-- Nút gửi xin duyệt hoặc thông báo chờ -->
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button id="approval-refresh-btn" type="button" class="btn border border-slate-300 bg-white hover:bg-slate-50 flex-1 py-2.5 text-xs font-bold rounded-xl shadow-sm">↻ Kiểm tra lại</button>
+        <button id="approval-logout-btn" type="button" class="btn bg-slate-200 hover:bg-slate-300 text-slate-700 flex-1 py-2.5 text-xs font-bold rounded-xl">Đăng xuất</button>
+      </div>
     </div>
   </main>
 
