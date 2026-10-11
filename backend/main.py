@@ -518,52 +518,64 @@ async def approve_or_reject_user(
     admin: CurrentUser = Depends(require_admin),
 ):
     """Phê duyệt hoặc từ chối yêu cầu cấp quyền Admin trực tiếp từ Dashboard."""
-    rows = await supa.rest_get("profiles", {"id": f"eq.{body.user_id}", "select": "id,full_name,email"})
-    if not rows:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy tài khoản")
+    try:
+        rows = await supa.rest_get("profiles", {"id": f"eq.{body.user_id}", "select": "id,full_name,email"})
+        if not rows:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy tài khoản")
 
-    target_user = rows[0]
-    now_iso = datetime.now(notifier.VN_TZ).isoformat()
+        target_user = rows[0]
+        now_iso = datetime.now(notifier.VN_TZ).isoformat()
 
-    if body.action == "approve":
-        try:
-            await supa.rest_update(
-                "profiles",
-                {"id": f"eq.{body.user_id}"},
-                {
-                    "role": "admin",
-                    "is_approved": True,
-                    "approval_status": "approved",
-                    "approved_at": now_iso,
-                    "must_change_password": False,
-                },
-            )
-        except Exception:
-            await supa.rest_update(
-                "profiles",
-                {"id": f"eq.{body.user_id}"},
-                {"role": "admin", "must_change_password": False},
-            )
-        if target_user.get("email"):
-            background_tasks.add_task(
-                notifier.send_admin_approval_success_email,
-                target_user.get("full_name", ""),
-                target_user["email"],
-            )
-        return {"status": "ok", "message": f"Đã phê duyệt quyền Admin cho {target_user.get('email', body.user_id)}."}
-    else:
-        try:
-            await supa.rest_update(
-                "profiles",
-                {"id": f"eq.{body.user_id}"},
-                {
-                    "is_approved": False,
-                    "approval_status": "rejected",
-                },
-            )
-        except Exception:
-            pass
-        return {"status": "ok", "message": "Đã từ chối yêu cầu."}
+        if body.action == "approve":
+            try:
+                await supa.rest_update(
+                    "profiles",
+                    {"id": f"eq.{body.user_id}"},
+                    {
+                        "role": "admin",
+                        "is_approved": True,
+                        "approval_status": "approved",
+                        "approved_at": now_iso,
+                        "must_change_password": False,
+                    },
+                )
+            except Exception as e_up:
+                log.warning("Cập nhật đầy đủ cột phê duyệt thất bại, thử cập nhật cơ bản: %s", e_up)
+                await supa.rest_update(
+                    "profiles",
+                    {"id": f"eq.{body.user_id}"},
+                    {"role": "admin", "must_change_password": False},
+                )
+            try:
+                await supa.admin_update_user(body.user_id, {"user_metadata": {"role": "admin"}})
+            except Exception:
+                pass
+
+            if target_user.get("email"):
+                background_tasks.add_task(
+                    notifier.send_admin_approval_success_email,
+                    target_user.get("full_name", ""),
+                    target_user["email"],
+                )
+            return {"status": "ok", "message": f"Đã phê duyệt quyền Admin cho {target_user.get('email', body.user_id)}."}
+        else:
+            try:
+                await supa.rest_update(
+                    "profiles",
+                    {"id": f"eq.{body.user_id}"},
+                    {
+                        "is_approved": False,
+                        "approval_status": "rejected",
+                    },
+                )
+            except Exception as e_rej:
+                log.warning("Cập nhật từ chối thất bại: %s", e_rej)
+            return {"status": "ok", "message": "Đã từ chối yêu cầu."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("Lỗi khi phê duyệt/từ chối tài khoản %s: %s", body.user_id, e)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"Lỗi phê duyệt tài khoản: {str(e)}")
 
 
 # ---------------------------------------------------------------- patient endpoints (gửi ADR & Đường huyết)

@@ -62,11 +62,20 @@ async def admin_update_user(user_id: str, payload: dict) -> httpx.Response:
     )
 
 
-async def rest_patch(table: str, params: dict[str, str], body: dict) -> httpx.Response:
+async def rest_update(table: str, params: dict[str, str], body: dict) -> httpx.Response:
+    """Cập nhật bản ghi từ PostgREST (PATCH). Tự động raise_for_status khi gặp lỗi."""
     s = get_settings()
-    return await client().patch(
-        f"{s.supabase_url}/rest/v1/{table}", params=params, json=body, headers=_secret_headers()
+    headers = {**_secret_headers(), "Prefer": "return=representation"}
+    r = await client().patch(
+        f"{s.supabase_url}/rest/v1/{table}", params=params, json=body, headers=headers
     )
+    r.raise_for_status()
+    return r
+
+
+async def rest_patch(table: str, params: dict[str, str], body: dict) -> httpx.Response:
+    """Bí danh tương thích cho rest_update."""
+    return await rest_update(table, params, body)
 
 
 async def rest_post(table: str, body: dict | list[dict]) -> httpx.Response:
