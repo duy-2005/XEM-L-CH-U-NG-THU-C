@@ -10,31 +10,31 @@ ROOT = Path(__file__).resolve().parent.parent
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
-    supabase_url: str
-    supabase_secret_key: str            # CHỈ dùng ở backend
-    supabase_publishable_key: str = ""  # công khai, dành cho frontend
-    allowed_origins: str = "http://localhost:8000"
-    cron_secret: str = ""
-    app_url: str = "http://localhost:8000"
+    supabase_url: str = "https://sbejexjtbdhaphrpbmra.supabase.co"
+    supabase_secret_key: str            # CHỈ dùng ở backend (Render Environment Variable)
+    supabase_publishable_key: str = "sb_publishable_1_rre0CKhA2xkDnfejPJzQ_tr8ozVC3"  # công khai, dành cho frontend
+    allowed_origins: str = "https://lich-uong-thuoc.onrender.com,http://localhost:8000"
+    cron_secret: str = "duy_cron_secret_2026"
+    app_url: str = "https://lich-uong-thuoc.onrender.com"
     default_patient_password: str = "123456"
     patient_email_domain: str = "benhnhan.local"
 
     # Cấu hình Gmail SMTP
-    gmail_user: str = ""
-    gmail_app_password: str = ""
-    doctor_alert_email: str = ""
+    gmail_user: str = "damduy800@gmail.com"
+    gmail_app_password: str = "hxixitwkrkszvwnk"
+    doctor_alert_email: str = "damduy800@gmail.com"
 
     # Cấu hình Web Push (VAPID)
-    vapid_public_key: str = ""
-    vapid_private_key: str = ""
-    vapid_subject: str = "mailto:admin@example.com"
+    vapid_public_key: str = "BA44fPa2speh-4U6ekxP7qyNK-KhVqisJNsNu3DXwvEKyNFQIu6MzuaIdqA4kjRRf3TlcMc53hvzubgsfkePNr0"
+    vapid_private_key: str = "deOKFKXYAQSwmSKnKsz6NjR7k2AF3LA661kHyUyi9tc"
+    vapid_subject: str = "mailto:damduy800@gmail.com"
 
     # Giờ nhắc thuốc mặc định (HH:MM) - có thể chỉnh trong .env
-    reminder_time_sang: str = "07:00"
-    reminder_time_trua: str = "11:30"
-    reminder_time_chieu: str = "16:30"
-    reminder_time_toi: str = "19:30"
-    reminder_time_truoc_ngu: str = "21:30"
+    reminder_time_sang: str = "07:30"
+    reminder_time_trua: str = "12:00"
+    reminder_time_chieu: str = "17:00"
+    reminder_time_toi: str = "20:00"
+    reminder_time_truoc_ngu: str = "22:00"
 
     @property
     def slot_times(self) -> dict[str, str]:
