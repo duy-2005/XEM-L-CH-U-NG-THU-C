@@ -114,6 +114,17 @@ function registerServiceWorker() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(() => {});
 }
 
+function urlB64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 function validateNewPassword(p1, p2) {
   if (p1.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự';
   if (p1 === '123456') return 'Không dùng mật khẩu mặc định 123456';

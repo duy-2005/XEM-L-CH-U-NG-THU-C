@@ -1,4 +1,4 @@
-const CACHE = 'dtd-shell-v3';
+const CACHE = 'dtd-shell-v4';
 const SHELL = [
   '/index.html', '/app.js', '/common.js', '/styles.css', '/manifest.json',
   '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png',
@@ -40,11 +40,11 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   let data = {};
   try { data = e.data ? e.data.json() : {}; } catch { data = { body: e.data && e.data.text() }; }
-  const title = String(data.title || '🚨 Cảnh báo y tế');
-  const targetUrl = data.url || '/admin.html';
+  const title = String(data.title || '🔔 Nhắc nhở uống thuốc');
+  const targetUrl = data.url || '/index.html';
   e.waitUntil(
     self.registration.showNotification(title, {
-      body: String(data.body || 'Có dữ liệu y tế khẩn cấp cần bác sĩ xem xét.'),
+      body: String(data.body || 'Đã đến giờ dùng thuốc theo chỉ định của bác sĩ.'),
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
       vibrate: [200, 100, 200, 100, 200],

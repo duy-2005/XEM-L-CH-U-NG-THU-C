@@ -186,6 +186,93 @@ function enterApp() {
   $('acc-name').textContent = profile.full_name || '';
   showView('app');
   switchTab('today');
+  checkAndInitPatientPushStatus();
+}
+
+/* ---------------------------------------------------------------- Web Push Chuông nhắc thuốc */
+async function checkAndInitPatientPushStatus() {
+  const box = $('patient-push-box');
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (box) box.classList.add('hidden-view');
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    updatePatientPushBtnUI(!!sub);
+  } catch (e) {
+    console.error('Lỗi kiểm tra trạng thái push:', e);
+  }
+}
+
+function updatePatientPushBtnUI(isSubscribed) {
+  const btn = $('btn-patient-push');
+  const desc = $('patient-push-desc');
+  if (!btn) return;
+  if (isSubscribed) {
+    btn.textContent = '✓ Đang bật';
+    btn.className = 'btn text-xs px-3.5 py-2 bg-emerald-600 text-white font-bold rounded-xl shadow-sm pointer-events-none';
+    if (desc) desc.textContent = 'Đang tự động rung chuông khi đến giờ uống thuốc';
+  } else {
+    btn.textContent = 'Bật chuông';
+    btn.className = 'btn text-xs px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-sm';
+    if (desc) desc.textContent = 'Rung chuông & báo giờ uống thuốc ra màn hình';
+  }
+}
+
+async function onTogglePatientPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    toast('Trình duyệt không hỗ trợ thông báo đẩy', 'error');
+    return;
+  }
+  const reg = await navigator.serviceWorker.ready;
+  const existingSub = await reg.pushManager.getSubscription();
+  if (existingSub) {
+    toast('Thiết bị này đã được bật chuông nhắc thuốc!');
+    return;
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    toast('Bạn đã từ chối quyền thông báo trên trình duyệt', 'error');
+    return;
+  }
+
+  if (!cfg || !cfg.vapid_public_key) {
+    toast('Chưa cấu hình VAPID_PUBLIC_KEY trên máy chủ', 'error');
+    return;
+  }
+
+  const btn = $('btn-patient-push');
+  if (btn) { btn.disabled = true; btn.textContent = 'Đang kích hoạt…'; }
+
+  try {
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8Array(cfg.vapid_public_key),
+    });
+
+    const p256dhKey = sub.getKey('p256dh');
+    const authKey = sub.getKey('auth');
+    const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(p256dhKey)));
+    const auth = btoa(String.fromCharCode.apply(null, new Uint8Array(authKey)));
+
+    await authApi('/api/patient/push-subscription', {
+      method: 'POST',
+      body: JSON.stringify({
+        endpoint: sub.endpoint,
+        p256dh,
+        auth,
+      }),
+    });
+
+    updatePatientPushBtnUI(true);
+    toast('✓ Đã bật chuông nhắc thuốc thành công cho điện thoại này!');
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Bật chuông'; }
+    console.error('Lỗi bật chuông nhắc thuốc:', err);
+    toast('Không thể bật chuông: ' + err.message, 'error');
+  }
 }
 
 /* ---------------------------------------------------------------- API bảo mật gọi backend */
@@ -216,6 +303,7 @@ function bindEvents() {
   $('adr-form').addEventListener('submit', onSubmitAdr);
   $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
   document.querySelectorAll('.tab-btn').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  if ($('btn-patient-push')) $('btn-patient-push').addEventListener('click', onTogglePatientPush);
 }
 
 function switchTab(tab) {

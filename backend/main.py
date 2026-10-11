@@ -338,6 +338,26 @@ async def save_push_subscription(body: PushSubscriptionIn, admin: CurrentUser = 
         raise HTTPException(500, "Không thể lưu thông báo đẩy")
 
 
+@app.post("/api/patient/push-subscription")
+async def save_patient_push_subscription(body: PushSubscriptionIn, user: CurrentUser = Depends(current_user)):
+    """Lưu Web Push subscription của thiết bị Bệnh nhân để nhận chuông báo giờ uống thuốc."""
+    try:
+        await supa.rest_upsert(
+            "push_subscriptions",
+            {
+                "user_id": user.id,
+                "endpoint": body.endpoint,
+                "p256dh": body.p256dh,
+                "auth": body.auth,
+            },
+            on_conflict="endpoint",
+        )
+        return {"ok": True, "message": "Đã lưu chuông báo nhắc thuốc trên máy thành công"}
+    except Exception as e:
+        log.error("Lỗi lưu patient push subscription: %s", e)
+        raise HTTPException(500, "Không thể lưu chuông nhắc thuốc")
+
+
 # ---------------------------------------------------------------- admin approval workflow
 @app.post("/api/admin/request-approval")
 @limiter.limit("10/minute")

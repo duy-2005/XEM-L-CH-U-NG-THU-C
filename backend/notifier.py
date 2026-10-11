@@ -573,12 +573,10 @@ async def check_and_send_reminders(target_slot: str | None = None, force: bool =
 
         for p in prescs:
             prof = p.get("profiles") or {}
-            patient_email = (prof.get("email") or "").strip()
-            if not patient_email or "@" not in patient_email:
-                continue  # Bệnh nhân không đăng ký email nhận thông báo
-
             patient_id = p["patient_id"]
             p_id = p["id"]
+            patient_name = prof.get("full_name") or "Bệnh nhân"
+            patient_email = (prof.get("email") or "").strip()
 
             # 1. Kiểm tra bệnh nhân đã bấm 'taken' chưa
             logs = await supa.rest_get(
@@ -595,57 +593,107 @@ async def check_and_send_reminders(target_slot: str | None = None, force: bool =
                 skipped_count += 1
                 continue  # Đã uống rồi, không nhắc nữa
 
-            # 2. Kiểm tra đã gửi email trong hôm nay cho khung giờ này chưa
-            already_sent = await supa.rest_get(
-                "reminder_log",
-                {
-                    "prescription_id": f"eq.{p_id}",
-                    "date": f"eq.{cur_date}",
-                    "time_slot": f"eq.{slot}",
-                    "channel": "eq.email",
-                    "select": "prescription_id",
-                },
-            )
-            if already_sent:
-                skipped_count += 1
-                continue  # Đã gửi rồi, tránh spam
-
-            # 3. Soạn và gửi email
-            sig = generate_confirm_token(patient_id, p_id, cur_date, slot)
-            confirm_url = f"{s.app_url}/api/confirm-dose?p={patient_id}&rx={p_id}&d={cur_date}&s={slot}&sig={sig}"
-
-            subject = f"[Nhắc thuốc] Đã đến giờ dùng thuốc {slot_name} ({p['drug_name']})"
-            patient_name = prof.get("full_name") or "Bệnh nhân"
-            html = make_reminder_html(
-                patient_name,
-                p["drug_name"],
-                p.get("dosage", ""),
-                p.get("instruction", ""),
-                slot_name,
-                p.get("is_insulin", False),
-                confirm_url=confirm_url,
-            )
-            text = f"Chào {patient_name},\nĐã đến giờ {slot_name}. Vui lòng dùng thuốc {p['drug_name']} ({p.get('dosage','')}).\nHướng dẫn: {p.get('instruction','')}\n\nBấm vào link sau để xác nhận Đã dùng thuốc: {confirm_url}"
-
-            ok = await send_email(patient_email, subject, html, text)
-            if ok:
-                sent_count += 1
-                # Ghi nhận vào reminder_log
-                try:
-                    await supa.rest_post(
+            # 2. GỬI WEB PUSH TRỰC TIẾP ĐẾN THIẾT BỊ / ĐIỆN THOẠI BỆNH NHÂN (NẾU ĐÃ BẬT CHUÔNG)
+            try:
+                patient_subs = await supa.rest_get(
+                    "push_subscriptions",
+                    {
+                        "user_id": f"eq.{patient_id}",
+                        "select": "endpoint,p256dh,auth",
+                    },
+                )
+                if patient_subs:
+                    push_already_sent = await supa.rest_get(
                         "reminder_log",
                         {
-                            "patient_id": patient_id,
-                            "prescription_id": p_id,
-                            "date": cur_date,
-                            "time_slot": slot,
-                            "channel": "email",
+                            "prescription_id": f"eq.{p_id}",
+                            "date": f"eq.{cur_date}",
+                            "time_slot": f"eq.{slot}",
+                            "channel": "eq.push",
+                            "select": "prescription_id",
                         },
                     )
-                except Exception as ex:
-                    log.error("Lỗi ghi reminder_log: %s", ex)
+                    if not push_already_sent:
+                        verb = "tiêm" if p.get("is_insulin") else "uống"
+                        push_title = f"🔔 Đến giờ {verb} thuốc: {slot_name}"
+                        push_body = f"💊 {p['drug_name']} ({p.get('dosage') or ''}). {p.get('instruction') or ''}".strip()
+                        push_payload = {
+                            "title": push_title,
+                            "body": push_body,
+                            "url": "/index.html",
+                            "tag": f"med-{slot}",
+                        }
+                        push_ok = False
+                        for sub_row in patient_subs:
+                            s_info = {
+                                "endpoint": sub_row["endpoint"],
+                                "keys": {"p256dh": sub_row["p256dh"], "auth": sub_row["auth"]},
+                            }
+                            if await send_webpush(s_info, push_payload):
+                                push_ok = True
+                        if push_ok:
+                            sent_count += 1
+                            try:
+                                await supa.rest_post(
+                                    "reminder_log",
+                                    {
+                                        "patient_id": patient_id,
+                                        "prescription_id": p_id,
+                                        "date": cur_date,
+                                        "time_slot": slot,
+                                        "channel": "push",
+                                    },
+                                )
+                            except Exception as ex:
+                                log.error("Lỗi ghi reminder_log (push): %s", ex)
+                            results.append({"patient": patient_name, "drug": p["drug_name"], "slot": slot, "type": "push"})
+            except Exception as e_push:
+                log.error("Lỗi gửi Web Push cho bệnh nhân %s: %s", patient_id, e_push)
 
-                results.append({"patient": patient_name, "drug": p["drug_name"], "slot": slot})
+            # 3. GỬI EMAIL NHẮC NHỞ (NẾU CÓ ĐĂNG KÝ EMAIL)
+            if patient_email and "@" in patient_email:
+                already_sent_email = await supa.rest_get(
+                    "reminder_log",
+                    {
+                        "prescription_id": f"eq.{p_id}",
+                        "date": f"eq.{cur_date}",
+                        "time_slot": f"eq.{slot}",
+                        "channel": "eq.email",
+                        "select": "prescription_id",
+                    },
+                )
+                if not already_sent_email:
+                    sig = generate_confirm_token(patient_id, p_id, cur_date, slot)
+                    confirm_url = f"{s.app_url}/api/confirm-dose?p={patient_id}&rx={p_id}&d={cur_date}&s={slot}&sig={sig}"
+                    subject = f"[Nhắc thuốc] Đã đến giờ dùng thuốc {slot_name} ({p['drug_name']})"
+                    html = make_reminder_html(
+                        patient_name,
+                        p["drug_name"],
+                        p.get("dosage", ""),
+                        p.get("instruction", ""),
+                        slot_name,
+                        p.get("is_insulin", False),
+                        confirm_url=confirm_url,
+                    )
+                    text = f"Chào {patient_name},\nĐã đến giờ {slot_name}. Vui lòng dùng thuốc {p['drug_name']} ({p.get('dosage','')}).\nHướng dẫn: {p.get('instruction','')}\n\nBấm vào link sau để xác nhận Đã dùng thuốc: {confirm_url}"
+
+                    ok = await send_email(patient_email, subject, html, text)
+                    if ok:
+                        sent_count += 1
+                        try:
+                            await supa.rest_post(
+                                "reminder_log",
+                                {
+                                    "patient_id": patient_id,
+                                    "prescription_id": p_id,
+                                    "date": cur_date,
+                                    "time_slot": slot,
+                                    "channel": "email",
+                                },
+                            )
+                        except Exception as ex:
+                            log.error("Lỗi ghi reminder_log (email): %s", ex)
+                        results.append({"patient": patient_name, "drug": p["drug_name"], "slot": slot, "type": "email"})
 
     return {
         "status": "ok",
