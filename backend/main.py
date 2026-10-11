@@ -371,14 +371,17 @@ async def request_admin_approval(
         return {"status": "already_approved", "message": "Tài khoản của bạn đã có quyền Quản trị viên."}
 
     now_iso = datetime.now(notifier.VN_TZ).isoformat()
-    await supa.rest_update(
-        "profiles",
-        {"id": f"eq.{user.id}"},
-        {
-            "approval_status": "pending",
-            "approval_requested_at": now_iso,
-        },
-    )
+    try:
+        await supa.rest_update(
+            "profiles",
+            {"id": f"eq.{user.id}"},
+            {
+                "approval_status": "pending",
+                "approval_requested_at": now_iso,
+            },
+        )
+    except Exception as e_prof:
+        log.warning("Chưa cập nhật được approval_status trong profiles (cần chạy SQL thêm cột): %s", e_prof)
 
     # Sinh token ký số HMAC (có hạn 48 giờ)
     token = notifier.generate_admin_approval_token(user.id, user.email)
@@ -435,21 +438,31 @@ async def approve_account_via_email(
 
     uid = data["uid"]
     email = data["em"]
-    rows = await supa.rest_get("profiles", {"id": f"eq.{uid}", "select": "id,full_name,email,is_approved"})
-    user_name = rows[0].get("full_name", "") if rows else ""
+    try:
+        rows = await supa.rest_get("profiles", {"id": f"eq.{uid}", "select": "id,full_name,email"})
+        user_name = rows[0].get("full_name", "") if rows else ""
+    except Exception:
+        user_name = ""
 
     now_iso = datetime.now(notifier.VN_TZ).isoformat()
-    await supa.rest_update(
-        "profiles",
-        {"id": f"eq.{uid}"},
-        {
-            "role": "admin",
-            "is_approved": True,
-            "approval_status": "approved",
-            "approved_at": now_iso,
-            "must_change_password": False,
-        },
-    )
+    try:
+        await supa.rest_update(
+            "profiles",
+            {"id": f"eq.{uid}"},
+            {
+                "role": "admin",
+                "is_approved": True,
+                "approval_status": "approved",
+                "approved_at": now_iso,
+                "must_change_password": False,
+            },
+        )
+    except Exception:
+        await supa.rest_update(
+            "profiles",
+            {"id": f"eq.{uid}"},
+            {"role": "admin", "must_change_password": False},
+        )
 
     # Gửi email chúc mừng tới người dùng
     if email:
@@ -506,17 +519,24 @@ async def approve_or_reject_user(
     now_iso = datetime.now(notifier.VN_TZ).isoformat()
 
     if body.action == "approve":
-        await supa.rest_update(
-            "profiles",
-            {"id": f"eq.{body.user_id}"},
-            {
-                "role": "admin",
-                "is_approved": True,
-                "approval_status": "approved",
-                "approved_at": now_iso,
-                "must_change_password": False,
-            },
-        )
+        try:
+            await supa.rest_update(
+                "profiles",
+                {"id": f"eq.{body.user_id}"},
+                {
+                    "role": "admin",
+                    "is_approved": True,
+                    "approval_status": "approved",
+                    "approved_at": now_iso,
+                    "must_change_password": False,
+                },
+            )
+        except Exception:
+            await supa.rest_update(
+                "profiles",
+                {"id": f"eq.{body.user_id}"},
+                {"role": "admin", "must_change_password": False},
+            )
         if target_user.get("email"):
             background_tasks.add_task(
                 notifier.send_admin_approval_success_email,
@@ -525,14 +545,17 @@ async def approve_or_reject_user(
             )
         return {"status": "ok", "message": f"Đã phê duyệt quyền Admin cho {target_user.get('email', body.user_id)}."}
     else:
-        await supa.rest_update(
-            "profiles",
-            {"id": f"eq.{body.user_id}"},
-            {
-                "is_approved": False,
-                "approval_status": "rejected",
-            },
-        )
+        try:
+            await supa.rest_update(
+                "profiles",
+                {"id": f"eq.{body.user_id}"},
+                {
+                    "is_approved": False,
+                    "approval_status": "rejected",
+                },
+            )
+        except Exception:
+            pass
         return {"status": "ok", "message": "Đã từ chối yêu cầu."}
 
 
