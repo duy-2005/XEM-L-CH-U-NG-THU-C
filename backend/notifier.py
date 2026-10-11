@@ -108,11 +108,26 @@ async def send_webpush(subscription_info: dict, payload_data: dict) -> bool:
 
 
 async def send_alert_push_to_admins(title: str, body: str, url: str = "/admin.html") -> int:
-    """Gửi Web Push notification cảnh báo đến toàn bộ thiết bị Bác sĩ đã đăng ký."""
+    """Gửi Web Push notification cảnh báo đến toàn bộ thiết bị Bác sĩ đã đăng ký (cô lập, không gửi cho bệnh nhân)."""
     try:
-        subs = await supa.rest_get("push_subscriptions", {"select": "endpoint,p256dh,auth"})
+        admin_rows = await supa.rest_get(
+            "profiles",
+            {"role": "eq.admin", "is_approved": "eq.true", "select": "id"},
+        )
+        if not admin_rows:
+            log.info("Chưa có bác sĩ nào được kích hoạt để nhận Web Push.")
+            return 0
+        admin_ids = [r["id"] for r in admin_rows if r.get("id")]
+        if not admin_ids:
+            return 0
+
+        in_filter = f"in.({','.join(admin_ids)})"
+        subs = await supa.rest_get(
+            "push_subscriptions",
+            {"user_id": in_filter, "select": "endpoint,p256dh,auth"},
+        )
         if not subs:
-            log.info("Chưa có thiết bị admin nào đăng ký nhận Web Push.")
+            log.info("Chưa có thiết bị bác sĩ nào đăng ký nhận Web Push.")
             return 0
         payload = {
             "title": title,
@@ -131,10 +146,10 @@ async def send_alert_push_to_admins(title: str, body: str, url: str = "/admin.ht
             }
             if await send_webpush(sub_info, payload):
                 sent += 1
-        log.info("Đã gửi Web Push tới %s/%s thiết bị admin", sent, len(subs))
+        log.info("Đã gửi Web Push tới %s/%s thiết bị bác sĩ", sent, len(subs))
         return sent
     except Exception as e:
-        log.error("Lỗi khi quét thiết bị admin gửi Web Push: %s", e)
+        log.error("Lỗi khi quét thiết bị bác sĩ gửi Web Push: %s", e)
         return 0
 
 

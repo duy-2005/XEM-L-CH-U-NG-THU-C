@@ -151,8 +151,29 @@ function bindEvents() {
   if ($('approval-logout-btn')) $('approval-logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); showView('login'); });
   if ($('refresh-approvals')) $('refresh-approvals').addEventListener('click', () => loadApprovals());
 
-  if ($('logout-btn')) $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
-  if ($('logout-btn-desktop')) $('logout-btn-desktop').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+  async function handleAdminLogout() {
+    try {
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await fetch('/api/push-subscription/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: sub.endpoint }),
+          }).catch(() => {});
+          await sub.unsubscribe().catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi hủy push khi admin đăng xuất:', e);
+    }
+    await sb.auth.signOut();
+    location.reload();
+  }
+
+  if ($('logout-btn')) $('logout-btn').addEventListener('click', handleAdminLogout);
+  if ($('logout-btn-desktop')) $('logout-btn-desktop').addEventListener('click', handleAdminLogout);
   window.addEventListener('hashchange', () => {
     const h = (window.location.hash || '').replace(/^#/, '');
     const validViews = ['alerts', 'patients', 'stats', 'reminders', 'approvals'];
@@ -196,8 +217,27 @@ async function checkAndInitPushStatus() {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
     updatePushBtnUI(!!sub);
+    if (sub) {
+      await autoSyncAdminPush(sub);
+    }
   } catch (e) {
     console.error('Lỗi kiểm tra push status:', e);
+  }
+}
+
+async function autoSyncAdminPush(sub) {
+  try {
+    const p256dhKey = sub.getKey('p256dh');
+    const authKey = sub.getKey('auth');
+    if (!p256dhKey || !authKey) return;
+    const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(p256dhKey)));
+    const auth = btoa(String.fromCharCode.apply(null, new Uint8Array(authKey)));
+    await api('/api/admin/push-subscription', {
+      method: 'POST',
+      body: JSON.stringify({ endpoint: sub.endpoint, p256dh, auth }),
+    }).catch(() => {});
+  } catch (err) {
+    console.warn('Lỗi tự động đồng bộ push admin:', err);
   }
 }
 
@@ -205,12 +245,13 @@ function updatePushBtnUI(isSubscribed) {
   const btn = $('btn-push-toggle');
   const txt = $('push-btn-text');
   if (!btn || !txt) return;
+  btn.disabled = false;
   if (isSubscribed) {
-    txt.textContent = '✓ Đã nhận thông báo';
-    btn.className = 'btn w-full text-xs px-3 py-2 bg-emerald-600 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-sm';
+    txt.textContent = '✓ Nhận cảnh báo (Bấm để tắt)';
+    btn.className = 'btn w-full text-xs px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transition';
   } else {
     txt.textContent = 'Bật thông báo đẩy';
-    btn.className = 'btn w-full text-xs px-3 py-2 bg-white/20 hover:bg-white/30 text-white font-bold rounded-xl flex items-center justify-center gap-1.5';
+    btn.className = 'btn w-full text-xs px-3 py-2 bg-white/20 hover:bg-white/30 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition';
   }
 }
 
@@ -221,12 +262,29 @@ async function onTogglePush() {
   }
   const reg = await navigator.serviceWorker.ready;
   const existingSub = await reg.pushManager.getSubscription();
+  const btn = $('btn-push-toggle');
 
+  // NẾU ĐANG BẬT -> BẤM ĐỂ TẮT (UNSUBSCRIBE)
   if (existingSub) {
-    toast('Thiết bị này đã được kích hoạt nhận thông báo đẩy!');
+    if (btn) btn.disabled = true;
+    try {
+      await fetch('/api/push-subscription/unsubscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: existingSub.endpoint }),
+      }).catch(() => {});
+      await existingSub.unsubscribe();
+      updatePushBtnUI(false);
+      toast('✓ Đã tắt nhận thông báo đẩy trên thiết bị này');
+    } catch (err) {
+      console.error('Lỗi tắt Web Push:', err);
+      toast('Không thể tắt thông báo: ' + err.message, 'error');
+      if (btn) btn.disabled = false;
+    }
     return;
   }
 
+  // NẾU CHƯA BẬT -> TIẾN HÀNH BẬT (SUBSCRIBE)
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
     toast('Bạn đã từ chối quyền thông báo trên trình duyệt', 'error');
@@ -237,6 +295,8 @@ async function onTogglePush() {
     toast('Chưa cấu hình VAPID_PUBLIC_KEY trên máy chủ', 'error');
     return;
   }
+
+  if (btn) btn.disabled = true;
 
   try {
     const sub = await reg.pushManager.subscribe({
@@ -262,6 +322,7 @@ async function onTogglePush() {
     updatePushBtnUI(true);
     toast('✓ Đã bật thông báo đẩy trực tiếp thành công cho thiết bị này!');
   } catch (err) {
+    if (btn) btn.disabled = false;
     console.error('Lỗi đăng ký Web Push:', err);
     toast('Không thể đăng ký nhận thông báo: ' + err.message, 'error');
   }

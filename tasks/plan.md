@@ -102,6 +102,56 @@ Kế hoạch này thực hiện nâng cấp toàn diện 7 tính năng mới the
 
 ---
 
+## 4. Kế hoạch Nâng cấp: Cô lập & Định tuyến Thông báo Đẩy (Device-to-Account Isolated Push Architecture)
+
+### 4.1. Vấn đề Thực tế & Rủi ro
+1. **Rủi ro gửi nhầm kênh giữa Bác sĩ và Bệnh nhân:**
+   - Trong `notifier.py`, hàm `send_alert_push_to_admins` đang truy vấn toàn bộ bảng `push_subscriptions` mà không lọc theo `role = 'admin'` hay `is_approved = true`. Do đó, thiết bị của bệnh nhân đã bật chuông nhắc thuốc cũng bị nhận nhầm các cảnh báo ADR/cấp cứu của Bác sĩ.
+2. **Rủi ro rò rỉ thông tin khi đổi tài khoản trên cùng thiết bị (Stale Binding on Logout):**
+   - Khi người dùng đăng xuất (`sb.auth.signOut()`), trình duyệt vẫn giữ Push Subscription trong Service Worker và trên database vẫn liên kết `endpoint` đó với `user_id` cũ. Nếu người khác dùng máy hoặc đăng nhập nick mới, thông báo của nick cũ vẫn bị gửi về máy.
+3. **Thiếu khả năng Tắt chuông chủ động:**
+   - Nút bật chuông hiện tại chỉ cho phép bật một chiều (bị khóa `pointer-events-none` sau khi bật), người dùng không thể tắt thông báo khi không muốn nhận trên thiết bị đó.
+
+---
+
+### 4.2. Kiến trúc Giải pháp (Targeted Isolation Architecture)
+
+```
+[Thiết bị / Trình duyệt] 
+       │
+       ├── Bấm Đăng nhập ────────► Tự động cập nhật: endpoint ◄──► user_id hiện tại (Device Re-binding)
+       │
+       ├── Bấm Đăng xuất ────────► Gọi Unsubscribe: Xóa endpoint khỏi DB + sub.unsubscribe() (Device Unbinding)
+       │
+       └── Bật / Tắt chuông ─────► Toggle đăng ký / hủy đăng ký linh hoạt ngay trên UI
+                                                │
+[Backend Notification Engine]                    ▼
+       ├── Nhắc thuốc bệnh nhân:  Chỉ truy vấn push_subscriptions WHERE user_id == patient_id
+       └── Cảnh báo cấp cứu Bác sĩ: Chỉ truy vấn push_subscriptions JOIN profiles WHERE role='admin' AND is_approved=true
+```
+
+---
+
+### 4.3. Các Hạng mục Triển khai Cụ thể
+
+#### Hạng mục 1: Backend - Cô lập Tuyệt đối Bộ lọc Thiết bị Nhận Tin
+- **Sửa `send_alert_push_to_admins` trong `backend/notifier.py`:**
+  - Lấy danh sách `admin_ids` có `role = 'admin'` và `is_approved = true` từ `profiles`.
+  - Chỉ truy vấn các subscriptions có `user_id IN (admin_ids)`. Tuyệt đối không gửi sang thiết bị của bệnh nhân.
+- **Bổ sung API Hủy đăng ký:**
+  - Tạo endpoint `POST /api/push-subscription/unsubscribe` nhận `{ endpoint: string }`.
+  - Xóa dòng có `endpoint` tương ứng khỏi bảng `push_subscriptions`.
+
+#### Hạng mục 2: Frontend - Quản lý Vòng đời Thiết bị (Binding / Unbinding)
+- **Đồng bộ tự động khi Đăng nhập (`app.js` & `admin.js`):**
+  - Khi người dùng đăng nhập thành công vào máy: Nếu thiết bị đã có sẵn Push Subscription, tự động gửi payload lên backend cập nhật `user_id` gắn với nick vừa đăng nhập.
+- **Hủy liên kết khi Đăng xuất:**
+  - Khi người dùng bấm nút Đăng xuất trên `index.html` hoặc `admin.html`:
+    1. Gửi request gọi `POST /api/push-subscription/unsubscribe` với `endpoint` hiện tại.
+    2. Gọi `sub.unsubscribe()` trên Service Worker.
+    3. Sau đó mới gọi `sb.auth.signOut()` và chuyển hướng.
+- **Giao diện Bật / Tắt chuông 2 chiều (Toggle Button):**
+  - Cho phép người dùng bấm nút để bật thông báo, và bấm lại nút đó để tắt thông báo bất cứ lúc nào. Hiển thị trạng thái rõ ràng: "Bật thông báo" / "✓ Đang bật (Bấm để tắt)".
 ## 4. Kế hoạch Kiểm thử & Nghiệm thu
 1. Kiểm tra xác thực email admin (đăng nhập bằng tài khoản chưa xác thực -> bị chặn; tài khoản đã xác thực -> vào bình thường).
 2. Kiểm tra tài khoản bệnh nhân lần đầu: ép đổi mật khẩu, kiểm tra cờ `is_first_login`.

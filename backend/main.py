@@ -99,6 +99,10 @@ class PushSubscriptionIn(BaseModel):
     auth: str = Field(min_length=10, max_length=500)
 
 
+class PushUnsubscribeIn(BaseModel):
+    endpoint: str = Field(min_length=10, max_length=1000)
+
+
 class PatientAdrCreate(BaseModel):
     symptoms: list[str] = Field(min_length=1, max_length=12)
     severity: str = Field(pattern=r"^(nhe|vua|nang)$")
@@ -358,6 +362,17 @@ async def save_patient_push_subscription(body: PushSubscriptionIn, user: Current
     except Exception as e:
         log.error("Lỗi lưu patient push subscription: %s", e)
         raise HTTPException(500, "Không thể lưu chuông nhắc thuốc")
+
+
+@app.post("/api/push-subscription/unsubscribe")
+async def unsubscribe_push(body: PushUnsubscribeIn):
+    """Hủy đăng ký thông báo đẩy của thiết bị (khi người dùng tắt chuông hoặc đăng xuất)."""
+    try:
+        await supa.rest_delete("push_subscriptions", {"endpoint": f"eq.{body.endpoint}"})
+        return {"ok": True, "message": "Đã hủy đăng ký nhận thông báo đẩy"}
+    except Exception as e:
+        log.warning("Lỗi hủy push subscription: %s", e)
+        return {"ok": False, "message": "Không thể hủy đăng ký"}
 
 
 # ---------------------------------------------------------------- admin approval workflow

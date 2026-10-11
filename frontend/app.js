@@ -200,8 +200,27 @@ async function checkAndInitPatientPushStatus() {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
     updatePatientPushBtnUI(!!sub);
+    if (sub) {
+      await autoSyncPatientPush(sub);
+    }
   } catch (e) {
     console.error('Lỗi kiểm tra trạng thái push:', e);
+  }
+}
+
+async function autoSyncPatientPush(sub) {
+  try {
+    const p256dhKey = sub.getKey('p256dh');
+    const authKey = sub.getKey('auth');
+    if (!p256dhKey || !authKey) return;
+    const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(p256dhKey)));
+    const auth = btoa(String.fromCharCode.apply(null, new Uint8Array(authKey)));
+    await authApi('/api/patient/push-subscription', {
+      method: 'POST',
+      body: JSON.stringify({ endpoint: sub.endpoint, p256dh, auth }),
+    }).catch(() => {});
+  } catch (err) {
+    console.warn('Lỗi tự động đồng bộ push:', err);
   }
 }
 
@@ -209,13 +228,14 @@ function updatePatientPushBtnUI(isSubscribed) {
   const btn = $('btn-patient-push');
   const desc = $('patient-push-desc');
   if (!btn) return;
+  btn.disabled = false;
   if (isSubscribed) {
-    btn.textContent = '✓ Đang bật';
-    btn.className = 'btn text-xs px-3.5 py-2 bg-emerald-600 text-white font-bold rounded-xl shadow-sm pointer-events-none';
-    if (desc) desc.textContent = 'Đang tự động rung chuông khi đến giờ uống thuốc';
+    btn.textContent = '✓ Đang bật (Bấm để tắt)';
+    btn.className = 'btn text-xs px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm cursor-pointer transition';
+    if (desc) desc.textContent = 'Đang tự động rung chuông khi đến giờ uống thuốc của bạn';
   } else {
     btn.textContent = 'Bật chuông';
-    btn.className = 'btn text-xs px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-sm';
+    btn.className = 'btn text-xs px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-sm cursor-pointer transition';
     if (desc) desc.textContent = 'Rung chuông & báo giờ uống thuốc ra màn hình';
   }
 }
@@ -227,11 +247,29 @@ async function onTogglePatientPush() {
   }
   const reg = await navigator.serviceWorker.ready;
   const existingSub = await reg.pushManager.getSubscription();
+  const btn = $('btn-patient-push');
+
+  // NẾU ĐANG BẬT -> BẤM ĐỂ TẮT (UNSUBSCRIBE)
   if (existingSub) {
-    toast('Thiết bị này đã được bật chuông nhắc thuốc!');
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang tắt…'; }
+    try {
+      await fetch('/api/push-subscription/unsubscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: existingSub.endpoint }),
+      }).catch(() => {});
+      await existingSub.unsubscribe();
+      updatePatientPushBtnUI(false);
+      toast('Đã tắt chuông nhắc thuốc trên thiết bị này');
+    } catch (err) {
+      console.error('Lỗi tắt chuông:', err);
+      toast('Không thể tắt chuông: ' + err.message, 'error');
+      if (btn) btn.disabled = false;
+    }
     return;
   }
 
+  // NẾU CHƯA BẬT -> TIẾN HÀNH BẬT (SUBSCRIBE)
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
     toast('Bạn đã từ chối quyền thông báo trên trình duyệt', 'error');
@@ -243,7 +281,6 @@ async function onTogglePatientPush() {
     return;
   }
 
-  const btn = $('btn-patient-push');
   if (btn) { btn.disabled = true; btn.textContent = 'Đang kích hoạt…'; }
 
   try {
@@ -301,7 +338,26 @@ function bindEvents() {
   $('pw-form').addEventListener('submit', (e) => onChangePassword(e, 'pw-new', 'pw-new2', 'pw-error', 'pw-submit', false));
   $('sugar-form').addEventListener('submit', onSaveSugar);
   $('adr-form').addEventListener('submit', onSubmitAdr);
-  $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+  $('logout-btn').addEventListener('click', async () => {
+    try {
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await fetch('/api/push-subscription/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: sub.endpoint }),
+          }).catch(() => {});
+          await sub.unsubscribe().catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi hủy push khi đăng xuất:', e);
+    }
+    await sb.auth.signOut();
+    location.reload();
+  });
   document.querySelectorAll('.tab-btn').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
   if ($('btn-patient-push')) $('btn-patient-push').addEventListener('click', onTogglePatientPush);
 }

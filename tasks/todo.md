@@ -64,4 +64,25 @@
     - Frontend: `admin.html` + `admin.js` thêm nút đăng ký thông báo; `service-worker.js` xử lý hiển thị push và định tuyến click về trang quản trị.
   - **Tiêu chí nghiệm thu:** Bác sĩ bật thông báo -> Khi có ca khẩn cấp, máy tính/điện thoại bác sĩ nhận ngay thông báo đẩy trên màn hình.
 
-### Checkpoint 5: Toàn bộ 7 tính năng đã hoàn thành và kiểm thử thành công! (Đạt)
+### Checkpoint 5: Toàn bộ 7 tính năng ban đầu đã hoàn thành và kiểm thử thành công! (Đạt)
+
+---
+
+## Giai đoạn 6: Cô lập & Định tuyến Thông báo Đẩy theo Nick Đăng Nhập
+- [x] **Task 6.1: Backend - Cô lập danh sách nhận tin & Lọc đúng vai trò Bác sĩ / Bệnh nhân**
+  - **Mô tả:** Trong `backend/notifier.py` sửa hàm `send_alert_push_to_admins`: Truy vấn danh sách admin đã duyệt (`role = 'admin'` VÀ `is_approved = true`), chỉ gửi push tới thiết bị thuộc các admin này. Tuyệt đối không gửi tới thiết bị của bệnh nhân.
+  - **Tiêu chí nghiệm thu:** Cảnh báo ADR / Cấp cứu chỉ gửi đến máy của Bác sĩ; máy bệnh nhân không nhận được cảnh báo này.
+- [x] **Task 6.2: Backend - API Hủy đăng ký (`POST /api/push-subscription/unsubscribe`)**
+  - **Mô tả:** Trong `backend/main.py`, tạo endpoint nhận `endpoint` của thiết bị để xóa bản ghi tương ứng khỏi bảng `push_subscriptions`.
+  - **Tiêu chí nghiệm thu:** Gọi API với endpoint -> Dòng subscription của máy đó bị xóa khỏi DB.
+- [x] **Task 6.3: Frontend - Tự động Đồng bộ Thiết bị với Tài khoản khi Đăng nhập (Auto Re-binding)**
+  - **Mô tả:** Trong `frontend/app.js` và `frontend/admin.js`, sau khi đăng nhập thành công (`afterLogin`), nếu trình duyệt đã có Push Subscription thì tự động gửi API đăng ký lại để gắn `endpoint` với `user_id` của tài khoản vừa đăng nhập.
+  - **Tiêu chí nghiệm thu:** Khi chuyển đổi tài khoản trên cùng thiết bị, database tự động cập nhật `user_id` mới nhất cho thiết bị đó.
+- [x] **Task 6.4: Frontend - Hủy liên kết Thiết bị khi Đăng xuất (Unbinding on Logout)**
+  - **Mô tả:** Khi bấm nút Đăng xuất trên `index.html` hoặc `admin.html`, gọi backend xóa subscription của thiết bị và hủy subscription trên browser (`sub.unsubscribe()`) trước khi hoàn tất đăng xuất.
+  - **Tiêu chí nghiệm thu:** Sau khi đăng xuất, máy tính/điện thoại không còn nhận bất kỳ thông báo nào của nick cũ.
+- [x] **Task 6.5: Frontend - Nút Bật/Tắt chuông 2 chiều linh hoạt (Toggle Push)**
+  - **Mô tả:** Cải tiến nút bật thông báo trên giao diện bệnh nhân và bác sĩ thành nút bật/tắt (Toggle): Người dùng có thể bật hoặc chủ động bấm tắt bất cứ lúc nào.
+  - **Tiêu chí nghiệm thu:** Bấm lần 1: Bật chuông; bấm lần 2: Tắt chuông và xóa subscription.
+
+### Checkpoint 6: Thông báo đẩy được cô lập 100% theo đúng tài khoản và thiết bị đang đăng nhập. (Đạt)
