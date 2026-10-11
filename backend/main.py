@@ -68,6 +68,8 @@ async def security_headers(request: Request, call_next):
     resp.headers["Referrer-Policy"] = "same-origin"
     resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if request.url.path.endswith((".html", ".js", ".css")) or request.url.path in ("/", ""):
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
     return resp
 
 
