@@ -375,6 +375,56 @@ async def unsubscribe_push(body: PushUnsubscribeIn):
         return {"ok": False, "message": "Không thể hủy đăng ký"}
 
 
+@app.post("/api/test-push")
+async def test_push_notification(user: CurrentUser = Depends(current_user)):
+    """Gửi Web Push thông báo thử nghiệm tới thiết bị của tài khoản đang đăng nhập."""
+    subs = await supa.rest_get(
+        "push_subscriptions",
+        {"user_id": f"eq.{user.id}", "select": "endpoint,p256dh,auth"},
+    )
+    if not subs:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Thiết bị này chưa bấm 'Bật thông báo' hoặc chưa cấp quyền trên trình duyệt. Vui lòng bật thông báo trước!",
+        )
+
+    if user.role == "admin":
+        title = "🚨 [THỬ NGHIỆM] Cảnh báo Bác sĩ"
+        body = "Thiết bị của Bác sĩ đã kết nối thành công. Sẵn sàng nhận cảnh báo cấp cứu & phản ứng thuốc (ADR)!"
+        url = "/admin.html"
+    else:
+        title = "🔔 [THỬ NGHIỆM] Chuông nhắc uống thuốc"
+        body = "Chuông nhắc thuốc trên máy của bạn hoạt động rất tốt! Khi đến giờ uống thuốc, máy sẽ rung chuông như thế này."
+        url = "/index.html"
+
+    payload = {
+        "title": title,
+        "body": body,
+        "url": url,
+        "tag": "test-alert",
+    }
+
+    sent = 0
+    for s_row in subs:
+        sub_info = {
+            "endpoint": s_row["endpoint"],
+            "keys": {
+                "p256dh": s_row["p256dh"],
+                "auth": s_row["auth"],
+            },
+        }
+        if await notifier.send_webpush(sub_info, payload):
+            sent += 1
+
+    if sent == 0:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "Không thể gửi thông báo tới thiết bị. Vui lòng kiểm tra quyền thông báo của trình duyệt.",
+        )
+
+    return {"ok": True, "message": f"Đã gửi thông báo thử nghiệm thành công tới thiết bị của bạn!"}
+
+
 # ---------------------------------------------------------------- admin approval workflow
 @app.post("/api/admin/request-approval")
 @limiter.limit("10/minute")

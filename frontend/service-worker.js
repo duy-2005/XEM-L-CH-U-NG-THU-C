@@ -1,4 +1,4 @@
-const CACHE = 'dtd-shell-v6';
+const CACHE = 'dtd-shell-v7';
 const SHELL = [
   '/index.html', '/app.js', '/common.js', '/styles.css', '/manifest.json',
   '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png',

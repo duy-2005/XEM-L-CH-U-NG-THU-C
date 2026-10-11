@@ -193,6 +193,7 @@ function bindEvents() {
   $('test-email-form').addEventListener('submit', onTestEmail);
   $('trigger-reminders-btn').addEventListener('click', onTriggerReminders);
   if ($('btn-push-toggle')) $('btn-push-toggle').addEventListener('click', onTogglePush);
+  if ($('btn-test-push-admin')) $('btn-test-push-admin').addEventListener('click', onTestPushAdmin);
 }
 
 /* ---------------------------------------------------------------- Web Push Notifications */
@@ -325,6 +326,22 @@ async function onTogglePush() {
     if (btn) btn.disabled = false;
     console.error('Lỗi đăng ký Web Push:', err);
     toast('Không thể đăng ký nhận thông báo: ' + err.message, 'error');
+  }
+}
+
+async function onTestPushAdmin() {
+  const btn = $('btn-test-push-admin');
+  if (btn) { btn.disabled = true; btn.textContent = 'Đang gửi test…'; }
+  try {
+    const res = await api('/api/test-push', { method: 'POST' });
+    toast(res.message || '✓ Đã gửi thông báo thử nghiệm tới máy của bạn!', 'success');
+  } catch (err) {
+    toast('Lỗi thử thông báo: ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🧪</span> <span>Thử thông báo về máy</span>';
+    }
   }
 }
 

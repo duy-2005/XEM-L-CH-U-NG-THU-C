@@ -360,6 +360,23 @@ function bindEvents() {
   });
   document.querySelectorAll('.tab-btn').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
   if ($('btn-patient-push')) $('btn-patient-push').addEventListener('click', onTogglePatientPush);
+  if ($('btn-patient-test-push')) $('btn-patient-test-push').addEventListener('click', onTestPushPatient);
+}
+
+async function onTestPushPatient() {
+  const btn = $('btn-patient-test-push');
+  if (btn) { btn.disabled = true; btn.textContent = 'Đang thử…'; }
+  try {
+    const res = await authApi('/api/test-push', { method: 'POST' });
+    toast(res.message || '✓ Đã rung chuông thử nghiệm trên máy của bạn!', 'success');
+  } catch (err) {
+    toast('Lỗi thử chuông: ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🧪 Thử chuông';
+    }
+  }
 }
 
 function switchTab(tab) {
