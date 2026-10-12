@@ -488,9 +488,12 @@ async function loadAlerts(silent) {
   ul.replaceChildren();
   if (!data.missed.length) ul.append(h('li', { class: 'py-2 text-slate-500' }, 'Không có thuốc bỏ lỡ.'));
   for (const m of data.missed) {
-    ul.append(h('li', { class: 'py-2 flex justify-between gap-2' },
-      h('span', {}, h('strong', {}, who(m.profiles)), ' – ', m.prescriptions ? m.prescriptions.drug_name : '—'),
-      h('span', { class: 'text-slate-500 shrink-0' }, `${fmtDate(m.date)} · ${SLOTS[m.time_slot] || ''}`)));
+    ul.append(h('li', { class: 'py-2.5 border-b border-slate-100 last:border-0' },
+      h('div', { class: 'flex justify-between gap-2' },
+        h('span', {}, h('strong', {}, who(m.profiles)), ' – ', m.prescriptions ? m.prescriptions.drug_name : '—'),
+        h('span', { class: 'text-slate-500 shrink-0 text-xs' }, `${fmtDate(m.date)} · ${SLOTS[m.time_slot] || ''}`)),
+      m.notes && h('p', { class: 'text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-2.5 py-1.5 mt-1 font-medium' },
+        h('strong', {}, '💬 Lý do bệnh nhân báo: '), m.notes)));
   }
 }
 

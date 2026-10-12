@@ -158,3 +158,262 @@ function validateNewPassword(p1, p2) {
   if (p1 !== p2) return 'Hai mật khẩu không khớp';
   return '';
 }
+
+/* --- TIỆN ÍCH NHẬN DIỆN GIỌNG NÓI (SPEECH-TO-TEXT TIẾNG VIỆT) --- */
+function isSpeechSupported() {
+  return typeof window !== 'undefined' && (('SpeechRecognition' in window) || ('webkitSpeechRecognition' in window));
+}
+
+/** Chuyển đổi chuỗi tiếng Việt nói số sang số thực (ví dụ: 'sáu phẩy năm' -> 6.5, 'bảy chấm hai' -> 7.2, '5 chấm 8' -> 5.8). */
+function parseVietnameseNumber(text) {
+  if (!text) return null;
+  text = text.toLowerCase().trim();
+
+  // 1. Chuẩn hóa dạng "5 chấm 8" hoặc "5 phẩy 8" thành "5.8"
+  text = text.replace(/(\d+)\s*(?:chấm|phẩy)\s*(\d+)/g, '$1.$2');
+
+  // 2. Nếu đã có số thập phân trực tiếp dạng 6.5 hoặc 6,5
+  const directFloat = text.match(/\b\d+[.,]\d+\b/);
+  if (directFloat) {
+    const n = parseFloat(directFloat[0].replace(',', '.'));
+    if (!isNaN(n)) return n;
+  }
+
+  const wordMap = {
+    'không': 0, 'khong': 0,
+    'một': 1, 'mot': 1, 'mốt': 1,
+    'hai': 2,
+    'ba': 3,
+    'bốn': 4, 'bon': 4, 'tư': 4,
+    'năm': 5, 'nam': 5, 'lăm': 5,
+    'sáu': 6, 'sau': 6,
+    'bảy': 7, 'bay': 7, 'bẩy': 7,
+    'tám': 8, 'tam': 8,
+    'chín': 9, 'chin': 9,
+    'mười': 10, 'muoi': 10,
+  };
+
+  function parsePart(str) {
+    if (!str) return null;
+    str = str.trim();
+    const dMatch = str.match(/\b\d+\b/);
+    if (dMatch) return parseInt(dMatch[0], 10);
+    const words = str.split(/\s+/).filter(Boolean);
+    if (!words.length) return null;
+    if (words.length === 1 && wordMap[words[0]] !== undefined) {
+      return wordMap[words[0]];
+    }
+    // Ghép số tiếng Việt như "mười hai" -> 12, "hai mươi lăm" -> 25
+    let total = 0;
+    let temp = 0;
+    for (const w of words) {
+      if (wordMap[w] !== undefined) {
+        temp += wordMap[w];
+      } else if (w === 'mươi' || w === 'chục') {
+        temp = (temp || 1) * 10;
+        total += temp;
+        temp = 0;
+      } else if (w === 'trăm') {
+        temp = (temp || 1) * 100;
+        total += temp;
+        temp = 0;
+      }
+    }
+    return total + temp || null;
+  }
+
+  // Tách phần nguyên và phần thập phân qua từ khóa 'chấm', 'phẩy', '.', ','
+  const parts = text.split(/\s*(?:chấm|phẩy|\.|\,)\s*/);
+  if (parts.length >= 2) {
+    const whole = parsePart(parts[0]);
+    const frac = parsePart(parts[1]);
+    if (whole !== null && frac !== null) {
+      return parseFloat(`${whole}.${frac}`);
+    }
+  }
+
+  const single = parsePart(text);
+  if (single !== null) return single;
+  return null;
+}
+
+/** Tự động nhận diện ngữ cảnh đường huyết (Lúc đói / Sau ăn) từ lời nói */
+function detectSugarContext(text) {
+  if (!text) return null;
+  const t = text.toLowerCase();
+  if (t.includes('đói') || t.includes('sáng sớm') || t.includes('chưa ăn') || t.includes('trước ăn') || t.includes('nhịn ăn')) {
+    return 'fasting';
+  }
+  if (t.includes('sau ăn') || t.includes('sau khi ăn') || t.includes('no') || t.includes('sau bữa') || t.includes('2 tiếng') || t.includes('2 giờ')) {
+    return 'after_meal';
+  }
+  return null;
+}
+
+/** Tự động trích xuất các triệu chứng thuốc được nhắc đến trong lời nói */
+function detectSymptomsFromSpeech(text) {
+  if (!text) return [];
+  const t = text.toLowerCase();
+  const map = [
+    { name: 'Buồn nôn', keys: ['buồn nôn', 'nôn nao', 'muốn nôn', 'mắc nôn', 'nôn ói', 'nôn'] },
+    { name: 'Bủn rủn, vã mồ hôi, đói lả', keys: ['bủn rủn', 'vã mồ hôi', 'đói lả', 'toát mồ hôi', 'run tay', 'run chân', 'đói cồn cào'] },
+    { name: 'Chóng mặt', keys: ['chóng mặt', 'hoa mắt', 'choáng váng', 'chao đảo', 'xây xẩm', 'choáng'] },
+    { name: 'Đau đầu', keys: ['đau đầu', 'nhức đầu', 'buốt đầu'] },
+    { name: 'Đi ngoài nhiều lần', keys: ['đi ngoài', 'tiêu chảy', 'táo bón', 'đau bụng', 'đi phân lỏng', 'đi lỏng'] },
+    { name: 'Nổi mẩn đỏ, ngứa ngáy', keys: ['mẩn đỏ', 'ngứa ngáy', 'dị ứng', 'phát ban', 'nổi ngứa', 'ngứa', 'mề đay'] },
+    { name: 'Mệt mỏi', keys: ['mệt mỏi', 'uể oải', 'đuối sức', 'kiệt sức', 'người mệt', 'mệt'] },
+  ];
+  const detected = [];
+  for (const item of map) {
+    if (item.keys.some((k) => t.includes(k))) {
+      detected.push(item.name);
+    }
+  }
+  return detected;
+}
+
+/** Trình điều khiển kết nối nút bấm nói với ô nhập liệu */
+let _activeVoiceRecognition = null;
+function setupVoiceButton({
+  buttonEl,
+  inputEl,
+  mode = 'append', // 'append' | 'replace' | 'number'
+  statusEl = null,
+  onResult = null, // callback(finalText, interimText)
+  onParsed = null, // callback(resultObj)
+}) {
+  if (!buttonEl) return;
+  const originalHtml = buttonEl.innerHTML;
+
+  function stopCurrent() {
+    if (_activeVoiceRecognition) {
+      try { _activeVoiceRecognition.stop(); } catch (e) {}
+      _activeVoiceRecognition = null;
+    }
+  }
+
+  buttonEl.addEventListener('click', (e) => {
+    e.preventDefault();
+
+    if (!isSpeechSupported()) {
+      toast('Trình duyệt chưa hỗ trợ nhận diện giọng nói trực tiếp. Bạn có thể bấm vào bàn phím và chọn nút Micro để nói.', 'error');
+      return;
+    }
+
+    // Nếu đang ghi âm thì bấm lại để dừng
+    if (buttonEl.classList.contains('is-recording')) {
+      stopCurrent();
+      return;
+    }
+
+    // Dừng phiên đang chạy ở nút khác nếu có
+    stopCurrent();
+
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRec();
+    recognition.lang = 'vi-VN';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    let finalTranscript = '';
+
+    recognition.onstart = () => {
+      _activeVoiceRecognition = recognition;
+      buttonEl.classList.add('is-recording');
+      buttonEl.innerHTML = `<span class="voice-wave"><i class="voice-wave-bar"></i><i class="voice-wave-bar"></i><i class="voice-wave-bar"></i></span><span>Đang nghe…</span>`;
+      if (statusEl) {
+        statusEl.textContent = '🔴 Đang nghe bạn nói... (Bấm nút để dừng)';
+        show(statusEl, true);
+      }
+      if (navigator.vibrate) navigator.vibrate(40);
+    };
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const item = event.results[i];
+        if (item.isFinal) {
+          finalTranscript += item[0].transcript;
+        } else {
+          interim += item[0].transcript;
+        }
+      }
+
+      const currentText = (finalTranscript + ' ' + interim).trim();
+
+      if (mode === 'number') {
+        const val = parseVietnameseNumber(currentText);
+        if (inputEl && val !== null && val > 0 && val <= 50) {
+          inputEl.value = val;
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (statusEl) {
+          statusEl.textContent = `🎙️ "${currentText}"` + (val ? ` → ${val} mmol/L` : '');
+        }
+      } else if (inputEl) {
+        if (statusEl) {
+          statusEl.textContent = `🎙️ Đang nghe: "${currentText}"`;
+        }
+      }
+
+      if (onResult) onResult(finalTranscript.trim(), interim.trim());
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error === 'not-allowed') {
+        toast('Chưa cấp quyền Micro cho trình duyệt. Vui lòng cho phép quyền micro để nói.', 'error');
+      } else if (event.error === 'no-speech') {
+        toast('Không nghe thấy tiếng nói. Hãy thử bấm lại và nói to hơn nhé.', 'error');
+      } else if (event.error !== 'aborted') {
+        toast('Lỗi nhận diện giọng nói: ' + event.error, 'error');
+      }
+    };
+
+    recognition.onend = () => {
+      _activeVoiceRecognition = null;
+      buttonEl.classList.remove('is-recording');
+      buttonEl.innerHTML = originalHtml;
+      if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+
+      const text = finalTranscript.trim();
+      if (text) {
+        if (mode === 'number') {
+          const num = parseVietnameseNumber(text);
+          const sugarContext = detectSugarContext(text);
+          if (inputEl && num !== null && num > 0 && num <= 50) {
+            inputEl.value = num;
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+            toast(`✓ Đã nhận diện số đo: ${num} mmol/L` + (sugarContext ? ` (${sugarContext === 'fasting' ? 'Lúc đói' : 'Sau ăn'})` : ''));
+          } else if (inputEl && !inputEl.value) {
+            toast(`Không nhận diện được số đo từ "${text}". Vui lòng thử lại.`, 'error');
+          }
+          if (onParsed) onParsed({ text, number: num, context: sugarContext });
+        } else if (mode === 'append' && inputEl) {
+          const old = inputEl.value.trim();
+          inputEl.value = old ? (old + '. ' + text.charAt(0).toUpperCase() + text.slice(1)) : (text.charAt(0).toUpperCase() + text.slice(1));
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          toast('✓ Đã điền xong nội dung bạn nói');
+          if (onParsed) onParsed({ text });
+        } else if (mode === 'replace' && inputEl) {
+          inputEl.value = text.charAt(0).toUpperCase() + text.slice(1);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          toast('✓ Đã điền xong nội dung bạn nói');
+          if (onParsed) onParsed({ text });
+        }
+      }
+
+      if (statusEl) {
+        setTimeout(() => show(statusEl, false), 2500);
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch (err) {
+      stopCurrent();
+    }
+  });
+}
+

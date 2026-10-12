@@ -184,6 +184,10 @@ function enterApp() {
   $('today-label').textContent = fmtLongToday();
   $('acc-code').textContent = profile.patient_code || '';
   $('acc-name').textContent = profile.full_name || '';
+  if ($('acc-email')) {
+    const isLocal = !profile.email || profile.email.endsWith('@benhnhan.local');
+    $('acc-email').textContent = isLocal ? 'Chưa cài đặt' : profile.email;
+  }
   showView('app');
   switchTab('today');
   checkAndInitPatientPushStatus();
@@ -361,7 +365,150 @@ function bindEvents() {
   document.querySelectorAll('.tab-btn').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
   if ($('btn-patient-push')) $('btn-patient-push').addEventListener('click', onTogglePatientPush);
   if ($('btn-patient-test-push')) $('btn-patient-test-push').addEventListener('click', onTestPushPatient);
+
+  /* --- CÁC NÚT BẤM ĐỂ NÓI (VOICE INPUT) GỬI THÔNG TIN CHO BÁC SĨ --- */
+  // 1. Nói số đo đường huyết
+  if ($('btn-voice-sugar')) {
+    setupVoiceButton({
+      buttonEl: $('btn-voice-sugar'),
+      inputEl: $('sugar-level'),
+      mode: 'number',
+      statusEl: $('voice-hint-sugar'),
+      onParsed: ({ context }) => {
+        if (context && $('sugar-time')) {
+          $('sugar-time').value = context;
+        }
+      },
+    });
+  }
+
+  // 2. Nói mô tả triệu chứng bất thường (ADR)
+  if ($('btn-voice-adr')) {
+    setupVoiceButton({
+      buttonEl: $('btn-voice-adr'),
+      inputEl: $('adr-desc'),
+      mode: 'append',
+      statusEl: $('voice-hint-adr'),
+      onParsed: ({ text }) => {
+        // Tự động nhận diện và tick chọn các triệu chứng
+        const detected = detectSymptomsFromSpeech(text);
+        if (detected.length) {
+          detected.forEach((sym) => {
+            const cb = document.querySelector(`input[name=symptom][value="${sym}"]`);
+            if (cb && !cb.checked) {
+              cb.checked = true;
+              cb.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          });
+          toast(`✨ Tự động nhận diện: ${detected.join(', ')}`);
+        }
+
+        // Tự động nhận diện mức độ
+        const t = text.toLowerCase();
+        if (t.includes('nặng') || t.includes('cấp cứu') || t.includes('nghiêm trọng') || t.includes('khó thở') || t.includes('co giật')) {
+          const rNang = document.querySelector('input[name=severity][value="nang"]');
+          if (rNang) {
+            rNang.checked = true;
+            rNang.dispatchEvent(new Event('change', { bubbles: true }));
+            show($('adr-severe-note'), true);
+          }
+        } else if (t.includes('nhẹ') || t.includes('hơi hơi') || t.includes('chút ít')) {
+          const rNhe = document.querySelector('input[name=severity][value="nhe"]');
+          if (rNhe) {
+            rNhe.checked = true;
+            rNhe.dispatchEvent(new Event('change', { bubbles: true }));
+            show($('adr-severe-note'), false);
+          }
+        }
+      },
+    });
+  }
+
+  // 3. Nói lý do bỏ lỡ cữ thuốc gửi bác sĩ
+  if ($('btn-voice-missed')) {
+    setupVoiceButton({
+      buttonEl: $('btn-voice-missed'),
+      inputEl: $('missed-reason-text'),
+      mode: 'append',
+      statusEl: $('voice-hint-missed'),
+    });
+  }
+
+  // Xử lý sự kiện modal lý do bỏ lỡ thuốc
+  if ($('missed-modal-close')) {
+    $('missed-modal-close').addEventListener('click', () => $('dlg-missed-reason').close());
+  }
+  if ($('btn-missed-confirm-reason')) {
+    $('btn-missed-confirm-reason').addEventListener('click', () => {
+      const reason = $('missed-reason-text').value.trim();
+      $('dlg-missed-reason').close();
+      if (_pendingMissed) {
+        markDose(_pendingMissed.p, _pendingMissed.slot, 'missed', _pendingMissed.btn, reason || null);
+        _pendingMissed = null;
+      }
+    });
+  }
+  if ($('btn-missed-skip-reason')) {
+    $('btn-missed-skip-reason').addEventListener('click', () => {
+      $('dlg-missed-reason').close();
+      if (_pendingMissed) {
+        markDose(_pendingMissed.p, _pendingMissed.slot, 'missed', _pendingMissed.btn, null);
+        _pendingMissed = null;
+      }
+    });
+  }
+
+  // 4. Thử nghiệm gửi Email nhắc thuốc
+  function openTestEmailModal() {
+    const dlg = $('dlg-test-email');
+    if (!dlg) return;
+    const inp = $('test-email-input');
+    const isLocal = !profile.email || profile.email.endsWith('@benhnhan.local');
+    if (inp) inp.value = isLocal ? '' : profile.email;
+    setError($('test-email-error'), '');
+    if (typeof dlg.showModal === 'function') dlg.showModal();
+  }
+
+  if ($('btn-patient-test-email')) {
+    $('btn-patient-test-email').addEventListener('click', openTestEmailModal);
+  }
+  if ($('btn-account-test-email')) {
+    $('btn-account-test-email').addEventListener('click', openTestEmailModal);
+  }
+  if ($('test-email-close')) {
+    $('test-email-close').addEventListener('click', () => $('dlg-test-email').close());
+  }
+  if ($('btn-do-send-test-email')) {
+    $('btn-do-send-test-email').addEventListener('click', async () => {
+      const inp = $('test-email-input');
+      const emailVal = (inp ? inp.value : '').trim();
+      setError($('test-email-error'), '');
+      if (!emailVal || !emailVal.includes('@')) {
+        setError($('test-email-error'), 'Vui lòng nhập địa chỉ Email hợp lệ (ví dụ: your_name@gmail.com)');
+        return;
+      }
+      const btn = $('btn-do-send-test-email');
+      btn.disabled = true;
+      btn.textContent = '⏳ Đang gửi email…';
+      try {
+        const res = await authApi('/api/patient/test-email', {
+          method: 'POST',
+          body: JSON.stringify({ email: emailVal }),
+        });
+        profile.email = emailVal;
+        if ($('acc-email')) $('acc-email').textContent = emailVal;
+        $('dlg-test-email').close();
+        toast(res.message || '✓ Đã gửi email nhắc thuốc thử nghiệm thành công!');
+      } catch (err) {
+        setError($('test-email-error'), err.message || 'Không thể gửi email, vui lòng thử lại');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✓ Gửi Email Thử Nghiệm Ngay';
+      }
+    });
+  }
 }
+
 
 async function onTestPushPatient() {
   const btn = $('btn-patient-test-push');
@@ -570,7 +717,7 @@ function medCard(p, slot, status, isCurrent, isOverdue) {
         ? 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-400'
         : 'bg-white hover:bg-rose-50/50 text-slate-600 border-slate-200'
     }`,
-    onclick: (ev) => markDose(p, slot, 'missed', ev.currentTarget),
+    onclick: (ev) => openMissedModal(p, slot, ev.currentTarget),
   }, 'Bỏ lỡ');
 
   const recoveryNotice = isMissed ? h('div', { class: 'mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 font-semibold flex items-center justify-between gap-2' },
@@ -599,13 +746,41 @@ function medCard(p, slot, status, isCurrent, isOverdue) {
       status !== 'taken' && !isOverdue && btnMiss));
 }
 
-async function markDose(p, slot, status, btn) {
+let _pendingMissed = null;
+function openMissedModal(p, slot, btn) {
+  _pendingMissed = { p, slot, btn };
+  const dlg = $('dlg-missed-reason');
+  if ($('missed-modal-drug')) {
+    $('missed-modal-drug').textContent = `${p.drug_name} (${SLOTS[slot]})`;
+  }
+  if ($('missed-reason-text')) {
+    $('missed-reason-text').value = '';
+  }
+  if ($('voice-hint-missed')) {
+    show($('voice-hint-missed'), false);
+  }
+  if (dlg && typeof dlg.showModal === 'function') {
+    dlg.showModal();
+  } else {
+    markDose(p, slot, 'missed', btn, null);
+  }
+}
+
+async function markDose(p, slot, status, btn, notes = null) {
   btn.disabled = true;
+  const payload = {
+    patient_id: profile.id,
+    prescription_id: p.id,
+    date: vnToday(),
+    time_slot: slot,
+    status,
+  };
+  if (notes) payload.notes = notes;
   const { error } = await sb.from('daily_logs').upsert(
-    { patient_id: profile.id, prescription_id: p.id, date: vnToday(), time_slot: slot, status },
+    payload,
     { onConflict: 'prescription_id,date,time_slot' });
   if (error) { toast('Không lưu được, vui lòng thử lại', 'error'); btn.disabled = false; return; }
-  toast(status === 'taken' ? '✓ Đã ghi nhận dùng thuốc' : 'Đã ghi nhận bỏ lỡ');
+  toast(status === 'taken' ? '✓ Đã ghi nhận dùng thuốc' : (notes ? '✓ Đã báo bỏ lỡ kèm lý do tới Bác sĩ' : 'Đã ghi nhận bỏ lỡ'));
   loadToday();
 }
 

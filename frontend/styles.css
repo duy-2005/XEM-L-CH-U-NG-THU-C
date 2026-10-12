@@ -246,3 +246,68 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .hidden-view {
   display: none !important;
 }
+
+/* --- NÚT BẤM VÀ HOẠT ẢNH NÓI / VOICE INPUT --- */
+.btn-voice {
+  user-select: none;
+  touch-action: manipulation;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-voice:active {
+  transform: scale(0.95);
+}
+
+.btn-voice.is-recording {
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
+  color: #b91c1c !important;
+  animation: voicePulse 1.5s infinite ease-in-out;
+}
+
+@keyframes voicePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.voice-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 14px;
+}
+
+.voice-wave-bar {
+  width: 2.5px;
+  height: 6px;
+  background-color: currentColor;
+  border-radius: 9999px;
+  animation: voiceBarWave 0.8s ease-in-out infinite alternate;
+}
+
+.voice-wave-bar:nth-child(2) {
+  animation-delay: 0.15s;
+  height: 12px;
+}
+
+.voice-wave-bar:nth-child(3) {
+  animation-delay: 0.3s;
+  height: 8px;
+}
+
+@keyframes voiceBarWave {
+  0% {
+    transform: scaleY(0.4);
+  }
+  100% {
+    transform: scaleY(1.3);
+  }
+}
+

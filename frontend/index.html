@@ -142,7 +142,10 @@
               <p id="patient-push-desc" class="text-xs text-slate-500 font-medium">Rung chuông & báo giờ uống thuốc ra màn hình</p>
             </div>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="btn-patient-test-email" type="button" class="btn text-xs px-3 py-2 font-bold rounded-xl shadow-sm transition-all whitespace-nowrap bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300">
+              📧 Thử gửi Email
+            </button>
             <button id="btn-patient-test-push" type="button" class="btn text-xs px-3 py-2 font-bold rounded-xl shadow-sm transition-all whitespace-nowrap bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300">
               🧪 Thử chuông
             </button>
@@ -178,7 +181,12 @@
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="sugar-level" class="block text-xs font-bold text-slate-600 mb-1">Chỉ số (mmol/L)</label>
+              <div class="flex items-center justify-between mb-1">
+                <label for="sugar-level" class="block text-xs font-bold text-slate-600">Chỉ số (mmol/L)</label>
+                <button id="btn-voice-sugar" type="button" class="btn-voice inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 transition-all active:scale-95 shadow-sm" title="Bấm để nói số đo đường huyết">
+                  <span>🎤 Nói số đo</span>
+                </button>
+              </div>
               <input id="sugar-level" type="number" inputmode="decimal" step="0.1" min="0.5" max="50" required 
                      class="w-full border-2 border-slate-200 focus:border-teal-600 rounded-2xl px-3.5 py-3 text-2xl font-black text-teal-800 text-center transition-all" placeholder="6.5">
             </div>
@@ -190,6 +198,7 @@
               </select>
             </div>
           </div>
+          <p id="voice-hint-sugar" class="text-xs font-bold p-2.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 hidden-view fade-in" role="status"></p>
           <p id="sugar-hint" class="text-xs font-bold p-3 rounded-xl hidden-view" role="status"></p>
           <button id="sugar-submit" type="submit" class="btn hero-grad text-white w-full py-3.5 text-base shadow-md shadow-teal-700/20">
             ✓ Lưu chỉ số đường huyết
@@ -226,8 +235,14 @@
             <div class="space-y-2.5" id="adr-severity"></div>
           </fieldset>
           <div>
-            <label for="adr-desc" class="block text-xs font-bold text-slate-600 mb-1">Mô tả thêm (nếu có)</label>
-            <textarea id="adr-desc" rows="3" maxlength="1000" class="w-full border-2 border-slate-200 focus:border-teal-600 rounded-2xl p-3 text-sm transition-all" placeholder="Thời điểm bắt đầu, mức độ kéo dài, bạn đã xử trí ra sao…"></textarea>
+            <div class="flex items-center justify-between mb-1.5">
+              <label for="adr-desc" class="block text-xs font-bold text-slate-600">Mô tả thêm (nếu có)</label>
+              <button id="btn-voice-adr" type="button" class="btn-voice inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-extrabold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 transition-all active:scale-95 shadow-sm" title="Bấm để nói bằng giọng nói">
+                <span>🎤 Bấm để nói</span>
+              </button>
+            </div>
+            <textarea id="adr-desc" rows="3" maxlength="1000" class="w-full border-2 border-slate-200 focus:border-teal-600 rounded-2xl p-3 text-sm transition-all" placeholder="Thời điểm bắt đầu, mức độ kéo dài, bạn đã xử trí ra sao… Hoặc bấm nút 'Bấm để nói'"></textarea>
+            <p id="voice-hint-adr" class="text-xs font-bold p-2.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 hidden-view fade-in mt-1.5" role="status"></p>
           </div>
           <p id="adr-error" class="text-rose-600 text-sm font-semibold hidden-view" role="alert"></p>
           <div id="adr-severe-note" class="hidden-view bg-rose-50 border-2 border-rose-200 text-rose-800 rounded-2xl p-4 text-xs font-bold leading-relaxed">
@@ -256,10 +271,19 @@
             <span class="text-slate-500">Họ và tên</span>
             <strong id="acc-name" class="text-slate-800 font-bold"></strong>
           </div>
+          <div class="flex items-center justify-between py-1 border-b border-slate-100 text-sm">
+            <span class="text-slate-500">Email nhận nhắc thuốc</span>
+            <strong id="acc-email" class="text-teal-900 font-bold truncate max-w-[190px]">Chưa cài đặt</strong>
+          </div>
           <div class="flex items-center justify-between pt-2">
             <span class="text-sm text-slate-600 font-semibold">Cỡ chữ hiển thị</span>
             <button type="button" class="btn-open-font-size px-3 py-1.5 rounded-xl bg-teal-50 text-teal-800 text-xs font-bold border border-teal-200">
               <span class="current-font-label">Vừa</span> ✎ Đổi cỡ chữ
+            </button>
+          </div>
+          <div class="pt-2">
+            <button id="btn-account-test-email" type="button" class="btn w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs rounded-xl shadow-sm">
+              📧 Thử gửi Email nhắc thuốc tới hộp thư của bạn
             </button>
           </div>
         </div>
@@ -370,9 +394,75 @@
     </div>
   </dialog>
 
+  <!-- MODAL BÁO CÁO LÝ DO BỎ LỠ THUỐC (KÈM NÚT BẤM ĐỂ NÓI) -->
+  <dialog id="dlg-missed-reason" class="m-auto rounded-3xl p-0 shadow-2xl backdrop:bg-slate-900/60 max-w-sm w-full">
+    <div class="card p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center font-black text-xl">⚠️</div>
+          <div>
+            <h3 class="font-extrabold text-base text-slate-800">Ghi nhận bỏ lỡ thuốc</h3>
+            <p id="missed-modal-drug" class="text-xs font-bold text-teal-700 truncate max-w-[200px]"></p>
+          </div>
+        </div>
+        <button type="button" id="missed-modal-close" class="text-slate-400 hover:text-slate-600 p-1 text-xl font-bold">✕</button>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label for="missed-reason-text" class="block text-xs font-bold text-slate-700">Lý do gửi Bác sĩ (nếu có)</label>
+          <button id="btn-voice-missed" type="button" class="btn-voice inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-extrabold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 transition-all active:scale-95 shadow-sm" title="Bấm để nói lý do">
+            <span>🎤 Bấm để nói</span>
+          </button>
+        </div>
+        <textarea id="missed-reason-text" rows="3" maxlength="500" class="w-full border-2 border-slate-200 focus:border-teal-600 rounded-2xl p-3 text-sm transition-all" placeholder="Ví dụ: Quên mang thuốc theo, cảm thấy mệt, ăn chưa no… hoặc bấm 'Bấm để nói'"></textarea>
+        <p id="voice-hint-missed" class="text-xs font-bold p-2.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 hidden-view fade-in mt-1.5" role="status"></p>
+      </div>
+
+      <div class="space-y-2 pt-1">
+        <button type="button" id="btn-missed-confirm-reason" class="btn hero-grad text-white w-full py-3.5 text-sm shadow-md">
+          ✓ Lưu lý do & Báo bỏ lỡ
+        </button>
+        <button type="button" id="btn-missed-skip-reason" class="btn bg-slate-100 hover:bg-slate-200 text-slate-700 w-full py-2.5 text-xs font-bold rounded-xl">
+          Bỏ lỡ không cần ghi chú
+        </button>
+      </div>
+    </div>
+  <!-- MODAL THỬ NGHIỆM GỬI EMAIL NHẮC THUỐC -->
+  <dialog id="dlg-test-email" class="m-auto rounded-3xl p-0 shadow-2xl backdrop:bg-slate-900/60 max-w-sm w-full">
+    <div class="card p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-black text-xl">📧</div>
+          <div>
+            <h3 class="font-extrabold text-base text-slate-800">Thử gửi Email nhắc thuốc</h3>
+            <p class="text-xs text-slate-500">Nhận thư mẫu & nút xác nhận 1-chạm</p>
+          </div>
+        </div>
+        <button type="button" id="test-email-close" class="text-slate-400 hover:text-slate-600 p-1 text-xl font-bold">✕</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label for="test-email-input" class="block text-xs font-bold text-slate-700 mb-1">Địa chỉ Email nhận thư</label>
+          <input id="test-email-input" type="email" inputmode="email" required placeholder="Ví dụ: your_name@gmail.com"
+                 class="w-full border-2 border-slate-200 focus:border-teal-600 rounded-2xl p-3 text-sm font-semibold transition-all">
+          <p class="text-[11px] text-slate-400 mt-1">Hệ thống sẽ gửi ngay 1 email nhắc thuốc mẫu kèm nút 1-chạm và đường dẫn mở app về địa chỉ này.</p>
+        </div>
+
+        <p id="test-email-error" class="text-xs text-rose-600 font-bold hidden-view" role="alert"></p>
+
+        <button type="button" id="btn-do-send-test-email" class="btn hero-grad text-white w-full py-3.5 text-sm shadow-md font-extrabold">
+          ✓ Gửi Email Thử Nghiệm Ngay
+        </button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="/common.js?v=7"></script>
-  <script src="/app.js?v=7"></script>
+  <script src="/common.js?v=9"></script>
+  <script src="/app.js?v=9"></script>
 </body>
 </html>
+

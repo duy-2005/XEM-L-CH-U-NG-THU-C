@@ -24,12 +24,13 @@ class Settings(BaseSettings):
     @classmethod
     def clean_app_url(cls, v: str) -> str:
         import os
-        render_url = os.environ.get("RENDER_EXTERNAL_URL", "").strip()
+        render_url = os.environ.get("RENDER_EXTERNAL_URL", "").strip().rstrip("/")
+        # Nếu app_url được đặt tường minh (không phải localhost), ưu tiên app_url đó
+        if v and not any(h in v.lower() for h in ("localhost", "127.0.0.1", "0.0.0.0")):
+            return v.strip().rstrip("/")
         if render_url:
-            return render_url.rstrip("/")
-        if not v or "localhost" in v.lower() or "127.0.0.1" in v or "0.0.0.0" in v:
-            return "https://lich-uong-thuoc.onrender.com"
-        return v.strip().rstrip("/")
+            return render_url
+        return "https://lich-uong-thuoc.onrender.com"
 
     # Cấu hình Gmail SMTP
     gmail_user: str = "damduy800@gmail.com"

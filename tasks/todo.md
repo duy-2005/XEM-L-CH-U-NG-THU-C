@@ -86,3 +86,40 @@
   - **Tiêu chí nghiệm thu:** Bấm lần 1: Bật chuông; bấm lần 2: Tắt chuông và xóa subscription.
 
 ### Checkpoint 6: Thông báo đẩy được cô lập 100% theo đúng tài khoản và thiết bị đang đăng nhập. (Đạt)
+
+---
+
+## Giai đoạn 7: Tích hợp Nhập liệu bằng Giọng nói (Speech-to-Text) cho Bệnh nhân
+- [x] **Task 7.1: Bộ công cụ nhận diện giọng nói Web Speech API & Phân tích tiếng Việt**
+  - **Mô tả:** Trong `frontend/common.js` và `frontend/styles.css`, triển khai `isSpeechSupported()`, `parseVietnameseNumber()` (chuẩn hóa số đọc tiếng Việt sang số thực), `detectSugarContext()`, `detectSymptomsFromSpeech()` và bộ điều khiển `setupVoiceButton()`.
+  - **Tiêu chí nghiệm thu:** Phân tích chính xác số đo từ giọng nói (ví dụ: "sáu phẩy năm" -> 6.5, "5 chấm 8" -> 5.8); hiệu ứng sóng âm/nhấp nháy trực quan khi đang ghi âm.
+- [x] **Task 7.2: Nút bấm nói "🎤 Nói số đo" cho Form Đường huyết**
+  - **Mô tả:** Thêm nút bấm nói cạnh ô nhập chỉ số đường huyết trong `frontend/index.html` và tích hợp sự kiện trong `frontend/app.js`.
+  - **Tiêu chí nghiệm thu:** Bệnh nhân nói số đo đường huyết -> tự động điền số vào ô và tự động chọn thời điểm (đói / sau ăn).
+- [x] **Task 7.3: Nút bấm nói "🎤 Bấm để nói" cho Form Báo cáo Triệu chứng ADR**
+  - **Mô tả:** Thêm nút bấm nói cạnh ô mô tả triệu chứng bất thường; tự động trích xuất các triệu chứng thuốc được nhắc đến và tick chọn vào các checkbox tương ứng.
+  - **Tiêu chí nghiệm thu:** Lời nói được điền vào ô mô tả; tự động nhận diện từ khóa triệu chứng (chóng mặt, buồn nôn, đau đầu...) và tự động tick chọn.
+- [x] **Task 7.4: Modal Ghi nhận / Nói lý do Bỏ lỡ cữ thuốc & Hiển thị trên Dashboard Bác sĩ**
+  - **Mô tả:** Khi bấm "Bỏ lỡ" trên thẻ thuốc, mở modal `#dlg-missed-reason` cho phép bệnh nhân bấm nút nói hoặc nhập lý do quên thuốc; backend `backend/main.py` và dashboard `frontend/admin.js` đồng bộ hiển thị lý do này cho bác sĩ theo dõi.
+  - **Tiêu chí nghiệm thu:** Bệnh nhân nói/nhập lý do bỏ lỡ thuốc -> lưu vào DB; bác sĩ thấy trực tiếp lý do bên danh sách cảnh báo thuốc bỏ lỡ.
+
+### Checkpoint 7: Toàn bộ các vị trí phản hồi thông tin cho Bác sĩ ở phía Bệnh nhân đều hỗ trợ Nút bấm để nói (Đạt)
+
+---
+
+## Giai đoạn 8: Chuẩn hóa Link Web Email Nhắc thuốc & Thử nghiệm Email Bệnh nhân
+- [x] **Task 8.1: Chuẩn hóa link web (`app_url`) & Nút mở ứng dụng trong Email nhắc thuốc**
+  - **Mô tả:** Trong `backend/config.py` và `backend/notifier.py`, tối ưu nhận diện domain Render thực tế (`RENDER_EXTERNAL_URL`), bổ sung liên kết mở ứng dụng trực tiếp từ email bên cạnh nút xác nhận 1-chạm và cập nhật trang hoàn tất xác nhận (`/api/confirm-dose`) dẫn về đúng domain app.
+  - **Tiêu chí nghiệm thu:** Link trong email trỏ chính xác về domain ứng dụng trên Render; bấm nút xác nhận hay nút mở app đều hoạt động chuẩn xác.
+- [x] **Task 8.2: Backend API Thử nghiệm Gửi Email Nhắc thuốc (`POST /api/patient/test-email`)**
+  - **Mô tả:** Tạo endpoint cho phép bệnh nhân bấm gửi thử email nhắc thuốc mẫu qua Gmail SMTP, tự động lấy thông tin thuốc hoặc tạo đơn mẫu Metformin với chữ ký số HMAC 1-chạm.
+  - **Tiêu chí nghiệm thu:** Gửi thành công email nhắc thuốc mẫu về địa chỉ email của bệnh nhân.
+- [x] **Task 8.3: Giao diện Nút "📧 Thử gửi Email" trên App Bệnh nhân**
+  - **Mô tả:** Bổ sung nút "📧 Thử gửi Email" tại hộp nhắc thuốc tab Hôm nay và tab Tài khoản; kèm modal nhập/chỉnh sửa email nhận thư thử nghiệm.
+  - **Tiêu chí nghiệm thu:** Bệnh nhân bấm nút -> mở hộp thoại -> bấm gửi -> nhận được email nhắc thuốc mẫu ngay lập tức.
+- [x] **Task 8.4: Đẩy toàn bộ mã nguồn lên Git/Render**
+  - **Mô tả:** Commit toàn bộ các thay đổi và chạy lệnh `git push origin main` để Render tự động build và deploy phiên bản mới nhất.
+  - **Tiêu chí nghiệm thu:** Code được push lên GitHub `origin/main` thành công và Render tự động kích hoạt deployment.
+
+### Checkpoint 8: Hoàn tất kiểm thử email nhắc thuốc cho bệnh nhân và triển khai lên Render. (Đạt)
+

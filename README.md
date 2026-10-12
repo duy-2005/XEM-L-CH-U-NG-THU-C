@@ -11,6 +11,7 @@
    - Nhắc lịch dùng thuốc từng khung giờ (Sáng, Trưa, Chiều, Tối, Trước ngủ).
    - Xác nhận nhanh đã uống/đã tiêm thuốc hoặc ghi nhận lý do quên thuốc.
    - **Xác nhận 1-chạm qua Email**: Bệnh nhân chỉ cần nhấn nút trong Email để ghi nhận vào hệ thống mà không cần đăng nhập app.
+   - **Nhập liệu bằng Giọng nói (Speech-to-Text)**: Nút bấm để nói tiếng Việt trực tiếp khi nhập chỉ số đường huyết, mô tả phản ứng phụ (ADR) và ghi nhận lý do bỏ lỡ thuốc gửi bác sĩ. Tự động nhận diện từ khóa triệu chứng và phân tích số đo.
    - Báo cáo biến cố bất lợi của thuốc (ADR) nhanh chóng.
    - Theo dõi và lưu trữ chỉ số đường huyết (đói / sau ăn).
    - Hỗ trợ cài đặt trực tiếp vào màn hình chính điện thoại (PWA offline-ready).

@@ -114,6 +114,11 @@ class PatientBloodSugarCreate(BaseModel):
     time_of_day: str = Field(pattern=r"^(fasting|after_meal)$")
 
 
+class PatientTestEmailRequest(BaseModel):
+    email: str | None = None
+
+
+
 class ApproveUserPayload(BaseModel):
     user_id: str = Field(min_length=32, max_length=36)
     action: str = Field(pattern=r"^(approve|reject)$")
@@ -263,7 +268,7 @@ async def alerts(_: CurrentUser = Depends(require_admin)):
     missed = await supa.rest_get(
         "daily_logs",
         {
-            "select": "id,date,time_slot,prescriptions(drug_name),profiles:patient_id(full_name,patient_code)",
+            "select": "id,date,time_slot,notes,prescriptions(drug_name),profiles:patient_id(full_name,patient_code)",
             "status": "eq.missed",
             "date": f"gte.{since}",
             "order": "date.desc",
@@ -738,6 +743,109 @@ async def submit_patient_blood_sugar(
     return {"ok": True, "message": "Đã lưu chỉ số đường huyết"}
 
 
+@app.post("/api/patient/test-email")
+@limiter.limit("10/minute")
+async def test_patient_reminder_email(
+    request: Request,
+    body: PatientTestEmailRequest | None = None,
+    user: CurrentUser = Depends(current_user),
+):
+    """Gửi email nhắc thuốc thử nghiệm tới địa chỉ email của bệnh nhân."""
+    s = get_settings()
+
+    # Tự động lấy app_url thực tế từ request header nếu đang truy cập qua domain công khai
+    effective_app_url = s.app_url
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.url.netloc)
+    if host and not any(h in host.lower() for h in ("localhost", "127.0.0.1", "0.0.0.0")):
+        effective_app_url = f"{proto}://{host}".rstrip("/")
+
+    prof_rows = await supa.rest_get(
+        "profiles",
+        {"id": f"eq.{user.id}", "select": "id,full_name,patient_code,email"},
+    )
+    if not prof_rows:
+        raise HTTPException(404, "Không tìm thấy thông tin bệnh nhân")
+    prof = prof_rows[0]
+    p_name = prof.get("full_name") or prof.get("patient_code") or "Bệnh nhân"
+
+    target_email = (body.email.strip() if body and body.email else "").strip()
+    if not target_email:
+        target_email = (prof.get("email") or "").strip()
+
+    if not target_email or "@" not in target_email or target_email.endswith("@benhnhan.local"):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Tài khoản chưa có địa chỉ Email thực tế để nhận thông báo. Vui lòng nhập địa chỉ Email của bạn!",
+        )
+
+    if target_email != (prof.get("email") or "").strip():
+        try:
+            await supa.rest_patch("profiles", {"email": target_email}, {"id": f"eq.{user.id}"})
+        except Exception as ex:
+            log.warning("Không thể cập nhật email vào profile: %s", ex)
+
+    cur_date = datetime.now(VN_TZ).date().isoformat()
+    slot = "sang"
+    slot_name = notifier.SLOT_NAMES.get(slot, "Sáng")
+
+    presc_rows = await supa.rest_get(
+        "prescriptions",
+        {"patient_id": f"eq.{user.id}", "is_active": "eq.true", "limit": "1"},
+    )
+    if presc_rows:
+        p = presc_rows[0]
+        p_id = p["id"]
+        drug_name = p["drug_name"]
+        dosage = p.get("dosage", "")
+        instruction = p.get("instruction", "")
+        is_insulin = p.get("is_insulin", False)
+    else:
+        p_id = str(uuid.uuid4())
+        drug_name = "Metformin 500mg"
+        dosage = "1 viên sau ăn sáng"
+        instruction = "Uống với 1 cốc nước lọc sau khi ăn sáng no"
+        is_insulin = False
+
+    sig = notifier.generate_confirm_token(user.id, p_id, cur_date, slot)
+    confirm_url = f"{effective_app_url}/api/confirm-dose?p={user.id}&rx={p_id}&d={cur_date}&s={slot}&sig={sig}"
+
+    subject = f"🔔 [THỬ NGHIỆM] Nhắc nhở dùng thuốc {slot_name} ({drug_name})"
+    html = notifier.make_reminder_html(
+        patient_name=p_name,
+        drug_name=drug_name,
+        dosage=dosage,
+        instruction=instruction,
+        slot_name=slot_name,
+        is_insulin=is_insulin,
+        confirm_url=confirm_url,
+        app_url=effective_app_url,
+    )
+    text = (
+        f"Chào {p_name},\n"
+        f"ĐÂY LÀ EMAIL THỬ NGHIỆM TÍNH NĂNG NHẮC THUỐC.\n\n"
+        f"Đã đến giờ {slot_name}. Vui lòng dùng thuốc {drug_name} ({dosage}).\n"
+        f"Hướng dẫn: {instruction}\n\n"
+        f"1. Bấm vào liên kết sau để xác nhận ĐÃ DÙNG THUỐC (1-chạm không cần đăng nhập):\n{confirm_url}\n\n"
+        f"2. Mở ứng dụng theo dõi trên điện thoại:\n{effective_app_url}/\n"
+    )
+
+    ok = await notifier.send_email(target_email, subject, html, text)
+    if not ok:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "Không thể gửi email. Vui lòng kiểm tra lại địa chỉ email hoặc tài khoản Gmail SMTP của hệ thống.",
+        )
+
+    return {
+        "ok": True,
+        "message": f"Đã gửi email nhắc thuốc thử nghiệm thành công tới {target_email}!",
+        "email": target_email,
+        "app_url": effective_app_url,
+    }
+
+
+
 _UUID = re.compile(r"^[0-9a-fA-F-]{36}$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _VALID_SLOTS = frozenset({"sang", "trua", "chieu", "toi", "truoc_ngu"})
@@ -760,6 +868,7 @@ async def cron_reminders(request: Request, slot: str | None = None, force: bool 
 @app.get("/api/confirm-dose", response_class=HTMLResponse)
 @limiter.limit("30/minute")
 async def confirm_dose_from_email(request: Request, p: str, rx: str, d: str, s: str, sig: str):
+    cfg = get_settings()
     # 1. Kiểm tra định dạng đầu vào chặt chẽ (chống DoS / tham số độc hại)
     if not (_UUID.match(p) and _UUID.match(rx) and _DATE_RE.match(d) and s in _VALID_SLOTS and len(sig) == 24):
         return HTMLResponse(
@@ -877,7 +986,7 @@ async def confirm_dose_from_email(request: Request, p: str, rx: str, d: str, s: 
               <span>Khung giờ: {slot_name} · Ngày: {d}</span>
             </div>
 
-            <a href="/" class="btn">Mở ứng dụng theo dõi</a>
+            <a href="{cfg.app_url}/" class="btn">Mở ứng dụng theo dõi</a>
           </div>
         </body>
         </html>

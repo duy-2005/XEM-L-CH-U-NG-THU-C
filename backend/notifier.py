@@ -480,20 +480,42 @@ async def send_admin_approval_success_email(full_name: str, to_email: str) -> bo
     return await send_email(to_email, subject, html_body, text_body)
 
 
-def make_reminder_html(patient_name: str, drug_name: str, dosage: str, instruction: str, slot_name: str, is_insulin: bool, confirm_url: str = "") -> str:
+def make_reminder_html(
+    patient_name: str,
+    drug_name: str,
+    dosage: str,
+    instruction: str,
+    slot_name: str,
+    is_insulin: bool,
+    confirm_url: str = "",
+    app_url: str = "",
+) -> str:
+    s = get_settings()
+    base_url = (app_url or s.app_url or "").rstrip("/")
     verb = "tiêm" if is_insulin else "uống"
     action_btn = ""
     if confirm_url:
         action_btn = f"""
-        <div style="text-align: center; margin: 28px 0 12px 0;">
+        <div style="text-align: center; margin: 26px 0 10px 0;">
           <a href="{confirm_url}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #0d9488 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 36px; border-radius: 14px; font-weight: 800; font-size: 17px; box-shadow: 0 4px 14px rgba(13,148,136,0.35);">
             ✓ BẤM VÀO ĐÂY: TÔI ĐÃ {verb.upper()}
           </a>
         </div>
-        <p style="text-align: center; color: #6b7280; font-size: 13px; margin: 0 0 16px 0;">
+        <p style="text-align: center; color: #64748b; font-size: 13px; margin: 0 0 16px 0;">
           (Chỉ cần bấm nút trên là hệ thống tự động ghi nhận ngay, không cần đăng nhập vào app)
         </p>
         """
+
+    app_link = ""
+    if base_url:
+        app_link = f"""
+        <div style="text-align: center; margin: 12px 0 18px 0;">
+          <a href="{base_url}/" target="_blank" style="display: inline-block; background-color: #ecfeff; border: 1.5px solid #99f6e4; color: #0f766e; text-decoration: none; padding: 11px 24px; border-radius: 12px; font-weight: 700; font-size: 14px;">
+            📱 Mở ứng dụng theo dõi trên điện thoại
+          </a>
+        </div>
+        """
+
     return f"""
 <!DOCTYPE html>
 <html>
@@ -528,6 +550,7 @@ def make_reminder_html(patient_name: str, drug_name: str, dosage: str, instructi
     </div>
 
     {action_btn}
+    {app_link}
 
     <div class="footer">
       Email này được gửi tự động từ Hệ thống Quản trị & Tuân thủ thuốc Đái tháo đường.
@@ -689,8 +712,9 @@ async def check_and_send_reminders(target_slot: str | None = None, force: bool =
                         slot_name,
                         p.get("is_insulin", False),
                         confirm_url=confirm_url,
+                        app_url=s.app_url,
                     )
-                    text = f"Chào {patient_name},\nĐã đến giờ {slot_name}. Vui lòng dùng thuốc {p['drug_name']} ({p.get('dosage','')}).\nHướng dẫn: {p.get('instruction','')}\n\nBấm vào link sau để xác nhận Đã dùng thuốc: {confirm_url}"
+                    text = f"Chào {patient_name},\nĐã đến giờ {slot_name}. Vui lòng dùng thuốc {p['drug_name']} ({p.get('dosage','')}).\nHướng dẫn: {p.get('instruction','')}\n\n1. Bấm vào link sau để xác nhận Đã dùng thuốc: {confirm_url}\n2. Mở ứng dụng theo dõi trên điện thoại: {s.app_url}/"
 
                     ok = await send_email(patient_email, subject, html, text)
                     if ok:
