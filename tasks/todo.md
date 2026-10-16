@@ -1,18 +1,28 @@
 # Danh Sách Nhiệm Vụ Triển Khai (Todo List)
 
-## Giai đoạn 1: Sửa lỗi cập nhật hồ sơ khi đổi mật khẩu
-- [x] **Task 1: Cập nhật hàm `onChangePassword` trong `frontend/app.js`**
-  - **Mô tả:** Thay đổi payload gửi lên `profiles` thành payload tương thích linh hoạt: luôn cập nhật `must_change_password: false`, chỉ kèm `is_first_login: false` nếu thuộc tính này có trong `profile`.
-  - **Tiêu chí nghiệm thu:** Không bị lỗi PGRST204 400 từ Supabase; cập nhật profile thành công sau khi đổi mật khẩu.
+## Giai đoạn 1: Giao diện Kê Đơn Tùy Chỉnh Giờ (Frontend Admin)
+- [x] **Task 1: Cập nhật giao diện chọn giờ trong `frontend/admin.html`**
+  - **Mô tả:** Thay thế khu vực checkbox bằng bộ chọn giờ: `<input type="time">`, nút "Thêm giờ", các nút chọn nhanh (`+ 07:00`, `+ 11:30`, `+ 16:30`, `+ 19:00`, `+ 21:30`), và danh sách mốc giờ đã chọn dưới dạng tag có nút xóa ✕.
+  - **Tiêu chí nghiệm thu:** Bác sĩ chọn được giờ bất kỳ hoặc bấm nút nhanh, mốc giờ xuất hiện trong danh sách tags.
 
-## Giai đoạn 2: Bổ sung nút Return / Thoát ra ở màn hình Đặt mật khẩu mới
-- [x] **Task 2: Thêm nút Return trong `frontend/index.html`**
-  - **Mô tả:** Bổ sung nút quay lại "← Quay lại đăng nhập" bên dưới nút "Lưu mật khẩu" trong form `#force-pw-form` ở `#view-change-pw`.
-  - **Tiêu chí nghiệm thu:** Giao diện cân đối, nút nổi bật, dễ bấm trên màn hình điện thoại.
-- [x] **Task 3: Gắn sự kiện đăng xuất và điều hướng cho nút Return trong `frontend/app.js`**
-  - **Mô tả:** Bắt sự kiện click nút `#force-pw-back`, gọi `await sb.auth.signOut()`, xóa form và chuyển sang `showView('login')`.
-  - **Tiêu chí nghiệm thu:** Nhấn nút sẽ thoát ngay về màn hình đăng nhập an toàn.
+- [x] **Task 2: Xử lý logic chọn giờ và lưu đơn trong `frontend/admin.js`**
+  - **Mô tả:** Quản lý state danh sách giờ (`selectedTimes`). Ánh xạ giờ sang các slot cữ tương ứng (`sang`, `trua`, `chieu`, `toi`, `truoc_ngu`). Lưu `[TIMES:06:30,19:00]` vào `instruction` và hiển thị trực quan trong danh sách đơn thuốc.
+  - **Tiêu chí nghiệm thu:** Lưu đơn thuốc thành công vào Supabase với mốc giờ tùy chỉnh.
+
+## Giai đoạn 2: Trải nghiệm Xem Lịch Thuốc của Bệnh Nhân (Frontend Patient App)
+- [x] **Task 3: Hàm trích xuất giờ `parsePrescriptionTimes()` trong `frontend/common.js`**
+  - **Mô tả:** Hàm bóc tách chuỗi `[TIMES:06:30,19:00]` để lấy danh sách giờ cụ thể cho từng cữ thuốc; hỗ trợ tương thích ngược với đơn cũ.
+  - **Tiêu chí nghiệm thu:** Đơn có giờ tùy chỉnh trả về đúng giờ; đơn cũ trả về giờ mặc định.
+
+- [x] **Task 4: Hiển thị mốc giờ trên thẻ thuốc và sắp xếp thứ tự trong `frontend/app.js`**
+  - **Mô tả:** Thẻ thuốc của bệnh nhân hiển thị rõ ràng: `⏰ 06:30 · Cữ sáng`. Sắp xếp danh sách thuốc trong ngày theo đúng mốc giờ thời gian thực tế.
+  - **Tiêu chí nghiệm thu:** Bệnh nhân thấy rõ mốc giờ 06:30 và thuốc được xếp theo trình tự thời gian từ sớm đến muộn.
+
+## Giai đoạn 3: Hệ Thống Nhắc Nhở Tự Động Theo Giờ Từng Thuốc (Backend)
+- [x] **Task 5: Nâng cấp `check_and_send_reminders()` trong `backend/notifier.py`**
+  - **Mô tả:** Tiến trình ngầm so khớp giờ hiện tại với giờ cụ thể của từng loại thuốc. Nếu trùng khớp, gửi thông báo Web Push và Email nhắc thuốc đúng phút.
+  - **Tiêu chí nghiệm thu:** Đúng giờ hẹn của từng thuốc, hệ thống phát thông báo nhắc thuốc cụ thể.
 
 ## Checkpoint Nghiệm thu
-- [x] Chạy kiểm thử tự động / kiểm tra cú pháp mã nguồn
-- [x] Xác nhận luồng: Bệnh nhân đăng nhập lần đầu -> có thể bấm Return thoát ra ngoài, hoặc nhập mật khẩu mới và lưu thành công không còn lỗi đỏ.
+- [x] Kiểm tra cú pháp Javascript và Python (`node -c`, `python3 -m py_compile`)
+- [x] Sẵn sàng kiểm thử thêm đơn thuốc tùy chỉnh giờ và nhắc nhở đúng phút

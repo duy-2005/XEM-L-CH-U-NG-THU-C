@@ -316,10 +316,32 @@
           <label for="rx-inst" class="block text-sm font-semibold mb-1">Hướng dẫn</label>
           <input id="rx-inst" maxlength="500" placeholder="VD: Uống sau bữa ăn" class="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white">
         </div>
-        <fieldset>
-          <legend class="text-sm font-semibold mb-1">Khung giờ trong ngày</legend>
-          <div id="rx-slots" class="flex flex-wrap gap-2"></div>
-        </fieldset>
+        <div>
+          <label class="block text-sm font-semibold mb-1">Thiết lập giờ uống thuốc</label>
+          <div class="space-y-2">
+            <!-- Danh sách các mốc giờ đã chọn (tags) -->
+            <div id="rx-time-tags" class="flex flex-wrap gap-1.5 min-h-[38px] p-2 bg-white border border-slate-300 rounded-xl items-center">
+            </div>
+
+            <!-- Công cụ thêm giờ: Chọn giờ tự do + nút Thêm -->
+            <div class="flex items-center gap-2">
+              <input id="rx-custom-time" type="time" value="07:00" class="border border-slate-300 rounded-xl px-3 py-1.5 text-sm bg-white font-medium">
+              <button id="rx-btn-add-time" type="button" class="btn px-3 py-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-xl shadow-sm transition">
+                + Thêm mốc giờ
+              </button>
+            </div>
+
+            <!-- Gợi ý nhanh các mốc giờ phổ biến -->
+            <div class="flex flex-wrap items-center gap-1.5 pt-1">
+              <span class="text-[11px] text-slate-500 font-semibold">Gợi ý nhanh:</span>
+              <button type="button" data-time="07:00" class="rx-quick-time px-2 py-0.5 text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 border border-slate-200 rounded-lg transition">+ 07:00 (Sáng)</button>
+              <button type="button" data-time="11:30" class="rx-quick-time px-2 py-0.5 text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 border border-slate-200 rounded-lg transition">+ 11:30 (Trưa)</button>
+              <button type="button" data-time="16:30" class="rx-quick-time px-2 py-0.5 text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 border border-slate-200 rounded-lg transition">+ 16:30 (Chiều)</button>
+              <button type="button" data-time="19:00" class="rx-quick-time px-2 py-0.5 text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 border border-slate-200 rounded-lg transition">+ 19:00 (Tối)</button>
+              <button type="button" data-time="21:30" class="rx-quick-time px-2 py-0.5 text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 border border-slate-200 rounded-lg transition">+ 21:30 (Trước ngủ)</button>
+            </div>
+          </div>
+        </div>
         <label class="flex items-center gap-2 text-sm font-semibold"><input id="rx-insulin" type="checkbox" class="w-4 h-4 accent-teal-600"> Đây là insulin (thuốc tiêm)</label>
         <p id="rx-error" class="text-red-600 text-sm font-medium hidden-view" role="alert"></p>
         <button id="rx-submit" type="submit" class="btn hero-grad text-white px-5 py-2">Lưu đơn thuốc</button>
@@ -333,7 +355,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/common.js?v=8"></script>
-  <script src="/admin.js?v=8"></script>
+  <script src="/common.js?v=9"></script>
+  <script src="/admin.js?v=9"></script>
 </body>
 </html>

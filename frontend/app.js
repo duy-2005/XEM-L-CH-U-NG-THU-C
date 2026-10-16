@@ -148,6 +148,101 @@ async function boot() {
   }
 }
 
+/* ---------------------------------------------------------------- Chế độ Ngoại tuyến (Offline Mode & Auto-Sync) */
+function getCachedProfile() {
+  try {
+    const raw = localStorage.getItem('dtd_cached_profile');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function getOfflineQueue() {
+  try {
+    const raw = localStorage.getItem('dtd_sync_queue');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveToOfflineQueue(payload) {
+  try {
+    const queue = getOfflineQueue();
+    const idx = queue.findIndex(
+      (item) => item.prescription_id === payload.prescription_id && item.date === payload.date && item.time_slot === payload.time_slot
+    );
+    if (idx >= 0) queue[idx] = payload;
+    else queue.push(payload);
+    localStorage.setItem('dtd_sync_queue', JSON.stringify(queue));
+
+    // Đồng thời cập nhật vào cache logs hôm nay để hiển thị ngay lập tức
+    const today = payload.date;
+    const lRaw = localStorage.getItem('dtd_cached_logs_' + today);
+    const cachedLogs = lRaw ? JSON.parse(lRaw) : [];
+    const logIdx = cachedLogs.findIndex(
+      (l) => l.prescription_id === payload.prescription_id && l.time_slot === payload.time_slot
+    );
+    if (logIdx >= 0) cachedLogs[logIdx] = { prescription_id: payload.prescription_id, time_slot: payload.time_slot, status: payload.status };
+    else cachedLogs.push({ prescription_id: payload.prescription_id, time_slot: payload.time_slot, status: payload.status });
+    localStorage.setItem('dtd_cached_logs_' + today, JSON.stringify(cachedLogs));
+  } catch (e) {
+    console.error('Lỗi lưu vào hàng đợi offline:', e);
+  }
+}
+
+function getOfflineQueueLogsForDate(date) {
+  const queue = getOfflineQueue();
+  return queue
+    .filter((q) => q.date === date)
+    .map((q) => ({ prescription_id: q.prescription_id, time_slot: q.time_slot, status: q.status }));
+}
+
+let _isSyncing = false;
+async function syncOfflineQueue() {
+  if (_isSyncing || !navigator.onLine) return;
+  const queue = getOfflineQueue();
+  if (!queue.length) return;
+
+  _isSyncing = true;
+  console.log(`Bắt đầu đồng bộ ${queue.length} lượt uống thuốc offline lên Supabase...`);
+  try {
+    const remaining = [];
+    for (const item of queue) {
+      try {
+        const { error } = await sb.from('daily_logs').upsert(item, { onConflict: 'prescription_id,date,time_slot' });
+        if (error) {
+          console.warn('Lỗi đồng bộ bản ghi:', error);
+          remaining.push(item);
+        }
+      } catch (e) {
+        remaining.push(item);
+      }
+    }
+    localStorage.setItem('dtd_sync_queue', JSON.stringify(remaining));
+    if (remaining.length < queue.length) {
+      const syncedCount = queue.length - remaining.length;
+      toast(`✓ Đã đồng bộ ${syncedCount} lượt uống thuốc offline lên máy chủ!`, 'success');
+      loadToday();
+    }
+  } catch (err) {
+    console.error('Lỗi trong quá trình đồng bộ offline:', err);
+  } finally {
+    _isSyncing = false;
+  }
+}
+
+function updateNetworkBanner() {
+  const banner = $('offline-banner');
+  if (!banner) return;
+  if (!navigator.onLine) {
+    show(banner, true);
+  } else {
+    show(banner, false);
+  }
+}
+
 async function afterLogin() {
   try {
     const { data: u, error: uErr } = await sb.auth.getUser();
@@ -159,6 +254,8 @@ async function afterLogin() {
       return;
     }
     profile = data;
+    try { localStorage.setItem('dtd_cached_profile', JSON.stringify(profile)); } catch (e) {}
+
     if (profile.role === 'admin') {
       await sb.auth.signOut();
       showView('login');
@@ -173,7 +270,14 @@ async function afterLogin() {
     }
     enterApp();
   } catch (err) {
-    console.error('Lỗi sau khi đăng nhập:', err);
+    console.warn('Không thể kết nối máy chủ khi đăng nhập, kiểm tra profile cache offline:', err);
+    const cached = getCachedProfile();
+    if (cached) {
+      profile = cached;
+      enterApp();
+      toast('⚡ Đang mở ứng dụng ở chế độ ngoại tuyến', 'warning');
+      return;
+    }
     showView('login');
     setError($('login-error'), 'Lỗi tải thông tin bệnh nhân: ' + (err.message || 'Vui lòng đăng nhập lại'));
   }
@@ -191,6 +295,7 @@ function enterApp() {
   showView('app');
   switchTab('today');
   checkAndInitPatientPushStatus();
+  syncOfflineQueue();
 }
 
 /* ---------------------------------------------------------------- Web Push Chuông nhắc thuốc */
@@ -360,6 +465,9 @@ function bindEvents() {
   $('adr-form').addEventListener('submit', onSubmitAdr);
   $('logout-btn').addEventListener('click', async () => {
     try {
+      localStorage.removeItem('dtd_cached_profile');
+      localStorage.removeItem('dtd_cached_prescriptions');
+      localStorage.removeItem('dtd_sync_queue');
       if ('serviceWorker' in navigator && 'PushManager' in window) {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
@@ -378,6 +486,19 @@ function bindEvents() {
     await sb.auth.signOut();
     location.reload();
   });
+  window.addEventListener('online', () => {
+    updateNetworkBanner();
+    toast('✓ Đã khôi phục kết nối mạng Internet', 'success');
+    syncOfflineQueue();
+  });
+  window.addEventListener('offline', () => {
+    updateNetworkBanner();
+    toast('⚡ Mất kết nối Internet. Chế độ ngoại tuyến đã kích hoạt.', 'warning');
+  });
+  updateNetworkBanner();
+  setInterval(() => {
+    if (navigator.onLine) syncOfflineQueue();
+  }, 20000);
   document.querySelectorAll('.tab-btn').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
   if ($('btn-patient-push')) $('btn-patient-push').addEventListener('click', onTogglePatientPush);
   if ($('btn-patient-test-push')) $('btn-patient-test-push').addEventListener('click', onTestPushPatient);
@@ -479,10 +600,16 @@ function bindEvents() {
     const dlg = $('dlg-test-email');
     if (!dlg) return;
     const inp = $('test-email-input');
-    const isLocal = !profile.email || profile.email.endsWith('@benhnhan.local');
-    if (inp) inp.value = isLocal ? '' : profile.email;
+    const isLocal = !profile || !profile.email || profile.email.endsWith('@benhnhan.local');
+    if (inp) inp.value = isLocal ? '' : (profile.email || '');
     setError($('test-email-error'), '');
-    if (typeof dlg.showModal === 'function') dlg.showModal();
+    if (typeof dlg.showModal === 'function') {
+      try {
+        if (!dlg.open) dlg.showModal();
+      } catch (e) {
+        console.warn('Lỗi khi mở modal email:', e);
+      }
+    }
   }
 
   if ($('btn-patient-test-email')) {
@@ -492,8 +619,30 @@ function bindEvents() {
     $('btn-account-test-email').addEventListener('click', openTestEmailModal);
   }
   if ($('test-email-close')) {
-    $('test-email-close').addEventListener('click', () => $('dlg-test-email').close());
+    $('test-email-close').addEventListener('click', () => {
+      const dlg = $('dlg-test-email');
+      if (dlg && dlg.open) dlg.close();
+    });
   }
+  if ($('test-email-cancel')) {
+    $('test-email-cancel').addEventListener('click', () => {
+      const dlg = $('dlg-test-email');
+      if (dlg && dlg.open) dlg.close();
+    });
+  }
+
+  // Tự động đóng modal khi người dùng bấm vào vùng nền mờ bên ngoài (backdrop)
+  ['dlg-test-email', 'dlg-missed-reason', 'dlg-font-size'].forEach((dlgId) => {
+    const d = $(dlgId);
+    if (d) {
+      d.addEventListener('click', (e) => {
+        if (e.target === d && d.open) {
+          d.close();
+        }
+      });
+    }
+  });
+
   if ($('btn-do-send-test-email')) {
     $('btn-do-send-test-email').addEventListener('click', async () => {
       const inp = $('test-email-input');
@@ -511,11 +660,13 @@ function bindEvents() {
           method: 'POST',
           body: JSON.stringify({ email: emailVal }),
         });
-        profile.email = emailVal;
+        if (profile) profile.email = emailVal;
         if ($('acc-email')) $('acc-email').textContent = emailVal;
-        $('dlg-test-email').close();
-        toast(res.message || '✓ Đã gửi email nhắc thuốc thử nghiệm thành công!');
+        const dlg = $('dlg-test-email');
+        if (dlg && dlg.open) dlg.close();
+        toast(res.message || '✓ Đã gửi email nhắc thuốc thử nghiệm thành công!', 'success');
       } catch (err) {
+        console.error('Lỗi khi gửi email:', err);
         setError($('test-email-error'), err.message || 'Không thể gửi email, vui lòng thử lại');
       } finally {
         btn.disabled = false;
@@ -645,21 +796,60 @@ let _prevTakenCount = -1;
 
 async function loadToday() {
   const today = vnToday();
-  const [presc, logs] = await Promise.all([
-    sb.from('prescriptions').select('*').eq('is_active', true).order('created_at'),
-    sb.from('daily_logs').select('prescription_id,time_slot,status').eq('date', today),
-  ]);
+  let prescData = null;
+  let logsData = null;
+
+  try {
+    const [presc, logs] = await Promise.all([
+      sb.from('prescriptions').select('*').eq('is_active', true).order('created_at'),
+      sb.from('daily_logs').select('prescription_id,time_slot,status').eq('date', today),
+    ]);
+    if (presc.error || logs.error) throw (presc.error || logs.error);
+    prescData = presc.data || [];
+    logsData = logs.data || [];
+    try {
+      localStorage.setItem('dtd_cached_prescriptions', JSON.stringify(prescData));
+      localStorage.setItem('dtd_cached_logs_' + today, JSON.stringify(logsData));
+    } catch (e) {}
+  } catch (err) {
+    console.warn('Không thể tải dữ liệu từ máy chủ, nạp từ bộ nhớ máy (Offline):', err);
+    try {
+      const pRaw = localStorage.getItem('dtd_cached_prescriptions');
+      const lRaw = localStorage.getItem('dtd_cached_logs_' + today);
+      prescData = pRaw ? JSON.parse(pRaw) : null;
+      logsData = lRaw ? JSON.parse(lRaw) : [];
+    } catch (e) {}
+  }
+
   const list = $('med-list');
   list.replaceChildren();
-  if (presc.error || logs.error) {
-    list.append(h('p', { class: 'text-rose-600 text-center font-bold' }, 'Không tải được dữ liệu. Kiểm tra kết nối mạng.'));
+
+  if (!prescData) {
+    list.append(h('div', { class: 'card p-6 text-center text-slate-500 space-y-2' },
+      h('div', { class: 'text-3xl' }, '⚡'),
+      h('p', { class: 'font-bold text-slate-700' }, 'Bạn đang ngoại tuyến'),
+      h('p', { class: 'text-xs text-slate-400' }, 'Chưa có bản lưu đơn thuốc trên máy này. Hãy kết nối WiFi/4G một lần để đồng bộ.')));
     return;
   }
 
-  const done = new Map(logs.data.map((l) => [`${l.prescription_id}|${l.time_slot}`, l.status]));
+  // Gộp các bản ghi đang chờ đồng bộ từ hàng đợi offline
+  const offlineLogs = getOfflineQueueLogsForDate(today);
+  const allLogs = [...(logsData || [])];
+  for (const off of offlineLogs) {
+    const idx = allLogs.findIndex((l) => l.prescription_id === off.prescription_id && l.time_slot === off.time_slot);
+    if (idx >= 0) allLogs[idx] = off;
+    else allLogs.push(off);
+  }
+
+  const done = new Map(allLogs.map((l) => [`${l.prescription_id}|${l.time_slot}`, l.status]));
   const items = [];
-  for (const p of presc.data) for (const slot of p.frequency) items.push({ p, slot });
-  items.sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot));
+  for (const p of prescData) for (const slot of p.frequency) items.push({ p, slot });
+  items.sort((a, b) => {
+    const timeA = getPrescriptionTime(a.p, a.slot);
+    const timeB = getPrescriptionTime(b.p, b.slot);
+    if (timeA !== timeB) return timeA.localeCompare(timeB);
+    return SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot);
+  });
 
   if (!items.length) {
     list.append(h('div', { class: 'card p-8 text-center text-slate-500 space-y-2' },
@@ -758,17 +948,23 @@ function medCard(p, slot, status, isCurrent, isOverdue) {
     }, 'Uống bù')
   ) : null;
 
+  const exactTime = getPrescriptionTime(p, slot);
+  const parsed = parsePrescriptionTimes(p);
+  const displayInstruction = parsed.cleanInstruction;
+
   return h('article', { class: cardClass },
     h('div', { class: 'flex items-start justify-between gap-3 mb-2' },
       h('div', {},
-        h('span', { class: 'text-xs font-black uppercase tracking-wider text-teal-700 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-100' }, SLOTS[slot]),
-        h('h3', { class: 'text-xl font-black text-slate-900 mt-1.5' }, p.drug_name),
+        h('div', { class: 'flex items-center gap-1.5 flex-wrap mb-1.5' },
+          h('span', { class: 'text-xs font-black tracking-wide text-white bg-teal-700 px-2.5 py-0.5 rounded-lg shadow-xs' }, `⏰ ${exactTime}`),
+          h('span', { class: 'text-xs font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-lg border border-teal-200' }, SLOTS[slot])),
+        h('h3', { class: 'text-xl font-black text-slate-900 mt-1' }, p.drug_name),
         h('p', { class: 'text-slate-600 font-bold text-sm mt-0.5' }, `Liều dùng: ${p.dosage}`)),
       h('div', { class: 'flex flex-col items-end gap-1.5 shrink-0' },
         statusBadge(),
         p.is_insulin && h('span', { class: 'text-[11px] font-bold bg-amber-100 text-amber-900 rounded-full px-2.5 py-0.5 border border-amber-200' }, '💉 Insulin'))),
-    p.instruction && h('p', { class: 'text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100 mt-2 font-medium' },
-      h('strong', { class: 'text-slate-700' }, 'Hướng dẫn: '), p.instruction),
+    displayInstruction && h('p', { class: 'text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100 mt-2 font-medium' },
+      h('strong', { class: 'text-slate-700' }, 'Hướng dẫn: '), displayInstruction),
     recoveryNotice,
     h('div', { class: 'flex items-center gap-2.5 mt-4' },
       btnTake,
@@ -780,7 +976,7 @@ function openMissedModal(p, slot, btn) {
   _pendingMissed = { p, slot, btn };
   const dlg = $('dlg-missed-reason');
   if ($('missed-modal-drug')) {
-    $('missed-modal-drug').textContent = `${p.drug_name} (${SLOTS[slot]})`;
+    $('missed-modal-drug').textContent = `${p.drug_name} (⏰ ${getPrescriptionTime(p, slot)} · ${SLOTS[slot]})`;
   }
   if ($('missed-reason-text')) {
     $('missed-reason-text').value = '';
@@ -797,20 +993,38 @@ function openMissedModal(p, slot, btn) {
 
 async function markDose(p, slot, status, btn, notes = null) {
   btn.disabled = true;
+  const today = vnToday();
   const payload = {
     patient_id: profile.id,
     prescription_id: p.id,
-    date: vnToday(),
+    date: today,
     time_slot: slot,
     status,
   };
   if (notes) payload.notes = notes;
-  const { error } = await sb.from('daily_logs').upsert(
-    payload,
-    { onConflict: 'prescription_id,date,time_slot' });
-  if (error) { toast('Không lưu được, vui lòng thử lại', 'error'); btn.disabled = false; return; }
-  toast(status === 'taken' ? '✓ Đã ghi nhận dùng thuốc' : (notes ? '✓ Đã báo bỏ lỡ kèm lý do tới Bác sĩ' : 'Đã ghi nhận bỏ lỡ'));
-  loadToday();
+
+  if (!navigator.onLine) {
+    saveToOfflineQueue(payload);
+    btn.disabled = false;
+    toast(status === 'taken' ? '⚡ [Offline] Đã lưu dùng thuốc! Sẽ tự đồng bộ khi có mạng.' : '⚡ [Offline] Đã lưu báo bỏ lỡ! Sẽ tự đồng bộ khi có mạng.', 'warning');
+    loadToday();
+    return;
+  }
+
+  try {
+    const { error } = await sb.from('daily_logs').upsert(
+      payload,
+      { onConflict: 'prescription_id,date,time_slot' });
+    if (error) throw error;
+    toast(status === 'taken' ? '✓ Đã ghi nhận dùng thuốc' : (notes ? '✓ Đã báo bỏ lỡ kèm lý do tới Bác sĩ' : 'Đã ghi nhận bỏ lỡ'));
+  } catch (err) {
+    console.warn('Lỗi mạng khi lưu nhật ký, lưu vào hàng đợi offline:', err);
+    saveToOfflineQueue(payload);
+    toast('⚡ [Offline] Đã lưu vào máy! Sẽ tự động đồng bộ khi có mạng.', 'warning');
+  } finally {
+    btn.disabled = false;
+    loadToday();
+  }
 }
 
 /* ---------------------------------------------------------------- đường huyết */
@@ -849,9 +1063,21 @@ async function onSaveSugar(e) {
 
 async function loadSugar() {
   const since = addDays(vnToday(), -6);
-  const { data, error } = await sb.from('blood_sugar_logs').select('date,level,time_of_day,created_at')
-    .gte('date', since).order('created_at', { ascending: false }).limit(200);
-  if (error) { toast('Không tải được đường huyết', 'error'); return; }
+  let sugarData = [];
+  try {
+    const { data, error } = await sb.from('blood_sugar_logs').select('date,level,time_of_day,created_at')
+      .gte('date', since).order('created_at', { ascending: false }).limit(200);
+    if (error) throw error;
+    sugarData = data || [];
+    try { localStorage.setItem('dtd_cached_sugar', JSON.stringify(sugarData)); } catch (e) {}
+  } catch (err) {
+    console.warn('Không tải được đường huyết từ mạng, nạp từ cache:', err);
+    try {
+      const sRaw = localStorage.getItem('dtd_cached_sugar');
+      sugarData = sRaw ? JSON.parse(sRaw) : [];
+    } catch (e) {}
+  }
+  const data = sugarData;
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(since, i));
   const avg = (tod) => days.map((d) => {

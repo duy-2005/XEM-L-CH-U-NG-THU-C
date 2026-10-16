@@ -19,6 +19,12 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="text-slate-800">
+  <!-- Thanh cảnh báo ngoại tuyến (Offline Banner) -->
+  <div id="offline-banner" class="hidden-view fixed top-0 left-0 right-0 z-50 bg-amber-600 text-white text-xs font-bold px-4 py-2 text-center shadow-lg flex items-center justify-center gap-1.5 backdrop-blur">
+    <span>⚡</span>
+    <span>Bạn đang ngoại tuyến (Mất mạng) — Ứng dụng vẫn lưu đơn thuốc và sẽ tự động đồng bộ khi có mạng lại.</span>
+  </div>
+
   <!-- Canvas pháo hoa chúc mừng khi uống đủ 100% thuốc -->
   <canvas id="confetti-canvas"></canvas>
 
@@ -432,6 +438,8 @@
         </button>
       </div>
     </div>
+  </dialog>
+
   <!-- MODAL THỬ NGHIỆM GỬI EMAIL NHẮC THUỐC -->
   <dialog id="dlg-test-email" class="m-auto rounded-3xl p-0 shadow-2xl backdrop:bg-slate-900/60 max-w-sm w-full">
     <div class="card p-6 space-y-4">
@@ -456,9 +464,14 @@
 
         <p id="test-email-error" class="text-xs text-rose-600 font-bold hidden-view" role="alert"></p>
 
-        <button type="button" id="btn-do-send-test-email" class="btn hero-grad text-white w-full py-3.5 text-sm shadow-md font-extrabold">
-          ✓ Gửi Email Thử Nghiệm Ngay
-        </button>
+        <div class="space-y-2 pt-1">
+          <button type="button" id="btn-do-send-test-email" class="btn hero-grad text-white w-full py-3.5 text-sm shadow-md font-extrabold">
+            ✓ Gửi Email Thử Nghiệm Ngay
+          </button>
+          <button type="button" id="test-email-cancel" class="btn bg-slate-100 hover:bg-slate-200 text-slate-700 w-full py-2.5 text-xs font-bold rounded-xl">
+            Đóng lại
+          </button>
+        </div>
       </div>
     </div>
   </dialog>

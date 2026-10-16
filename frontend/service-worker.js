@@ -1,4 +1,4 @@
-const CACHE = 'dtd-shell-v7';
+const CACHE = 'dtd-shell-v9';
 const SHELL = [
   '/index.html', '/app.js', '/common.js', '/styles.css', '/manifest.json',
   '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png',
@@ -57,7 +57,7 @@ self.addEventListener('push', (e) => {
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  const targetUrl = (e.notification.data && e.notification.data.url) || '/admin.html';
+  const targetUrl = (e.notification.data && e.notification.data.url) || '/';
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const c of list) {

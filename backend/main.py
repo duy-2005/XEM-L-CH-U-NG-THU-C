@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -784,7 +784,8 @@ async def test_patient_reminder_email(
 
     if target_email != (prof.get("email") or "").strip():
         try:
-            await supa.rest_patch("profiles", {"email": target_email}, {"id": f"eq.{user.id}"})
+            await supa.rest_patch("profiles", {"id": f"eq.{user.id}"}, {"email": target_email})
+            log.info("Đã cập nhật email %s vào profile của bệnh nhân %s", target_email, user.id)
         except Exception as ex:
             log.warning("Không thể cập nhật email vào profile: %s", ex)
 
@@ -801,8 +802,13 @@ async def test_patient_reminder_email(
         p_id = p["id"]
         drug_name = p["drug_name"]
         dosage = p.get("dosage", "")
-        instruction = p.get("instruction", "")
+        raw_inst = p.get("instruction", "")
+        instruction = notifier.get_clean_instruction(raw_inst)
         is_insulin = p.get("is_insulin", False)
+        p_times = notifier.parse_prescription_times(p)
+        if p_times:
+            exact_time = next(iter(p_times.values()))
+            slot_name = f"{slot_name} (⏰ {exact_time})"
     else:
         p_id = str(uuid.uuid4())
         drug_name = "Metformin 500mg"
@@ -918,14 +924,17 @@ async def confirm_dose_from_email(request: Request, p: str, rx: str, d: str, s: 
 
     # Lấy thông tin thuốc để hiển thị đẹp mắt
     drug_name = "Thuốc"
+    slot_name = notifier.SLOT_NAMES.get(s, s)
     try:
-        presc_rows = await supa.rest_get("prescriptions", {"id": f"eq.{rx}", "select": "drug_name,is_insulin"})
+        presc_rows = await supa.rest_get("prescriptions", {"id": f"eq.{rx}", "select": "drug_name,is_insulin,instruction,frequency"})
         if presc_rows:
-            drug_name = presc_rows[0].get("drug_name", "Thuốc")
+            p_row = presc_rows[0]
+            drug_name = p_row.get("drug_name", "Thuốc")
+            p_times = notifier.parse_prescription_times(p_row)
+            if s in p_times:
+                slot_name = f"{slot_name} (⏰ {p_times[s]})"
     except Exception:
         pass
-
-    slot_name = notifier.SLOT_NAMES.get(s, s)
 
     return HTMLResponse(
         f"""

@@ -1,4 +1,5 @@
 """Client HTTP mỏng gọi Supabase (Auth admin + PostgREST) bằng khóa bí mật."""
+from __future__ import annotations
 import httpx
 
 from config import get_settings

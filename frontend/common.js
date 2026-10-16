@@ -3,6 +3,33 @@
 
 const SLOTS = { sang: 'Sáng', trua: 'Trưa', chieu: 'Chiều', toi: 'Tối', truoc_ngu: 'Trước khi ngủ' };
 const SLOT_ORDER = ['sang', 'trua', 'chieu', 'toi', 'truoc_ngu'];
+const DEFAULT_SLOT_TIMES = {
+  sang: '07:00',
+  trua: '11:30',
+  chieu: '16:30',
+  toi: '19:00',
+  truoc_ngu: '21:30',
+};
+
+function parsePrescriptionTimes(p) {
+  const res = { times: {}, cleanInstruction: p && p.instruction ? p.instruction : '' };
+  if (!p || !p.instruction) return res;
+  const match = p.instruction.match(/\[TIMES:([^\]]+)\]/);
+  if (match) {
+    const list = match[1].split(',').map((t) => t.trim()).filter(Boolean);
+    (p.frequency || []).forEach((slot, idx) => {
+      if (list[idx]) res.times[slot] = list[idx];
+    });
+    res.cleanInstruction = p.instruction.replace(match[0], '').trim();
+  }
+  return res;
+}
+
+function getPrescriptionTime(p, slot) {
+  const parsed = parsePrescriptionTimes(p);
+  return parsed.times[slot] || DEFAULT_SLOT_TIMES[slot] || '07:00';
+}
+
 const SYMPTOMS = [
   'Buồn nôn',
   'Bủn rủn, vã mồ hôi, đói lả',
@@ -130,9 +157,14 @@ async function loadConfig() {
     if (!res.ok) throw new Error('Không thể tải cấu hình từ máy chủ (HTTP ' + res.status + ')');
     const cfg = await res.json();
     if (!cfg.supabase_key) throw new Error('Máy chủ chưa cấu hình SUPABASE_PUBLISHABLE_KEY');
+    try { localStorage.setItem('dtd_cached_config', JSON.stringify(cfg)); } catch (e) {}
     return cfg;
   } catch (err) {
     clearTimeout(timer);
+    try {
+      const cached = localStorage.getItem('dtd_cached_config');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
     throw err;
   }
 }
@@ -290,6 +322,8 @@ function setupVoiceButton({
       try { _activeVoiceRecognition.stop(); } catch (e) {}
       _activeVoiceRecognition = null;
     }
+    buttonEl.classList.remove('is-recording');
+    buttonEl.innerHTML = originalHtml;
   }
 
   buttonEl.addEventListener('click', (e) => {

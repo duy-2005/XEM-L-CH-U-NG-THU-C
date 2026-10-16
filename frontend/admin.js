@@ -582,12 +582,93 @@ async function resetPassword(p) {
 }
 
 /* ---------------------------------------------------------------- chi tiết + kê đơn */
-function buildSlotChoices() {
-  const box = $('rx-slots');
-  for (const s of SLOT_ORDER) {
-    box.append(h('label', { class: 'flex items-center gap-1.5 bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-sm cursor-pointer has-[:checked]:bg-teal-600 has-[:checked]:text-white has-[:checked]:border-teal-600' },
-      h('input', { type: 'checkbox', name: 'rx-slot', value: s, class: 'sr-only', checked: s === 'sang' }), SLOTS[s]));
+/* ---------------------------------------------------------------- chi tiết + kê đơn */
+let selectedRxTimes = ['07:00'];
+
+function mapTimeToSlot(timeStr) {
+  const [h, m] = (timeStr || '07:00').split(':').map(Number);
+  const total = h * 60 + m;
+  if (total < 11 * 60) return 'sang';
+  if (total < 14 * 60) return 'trua';
+  if (total < 17 * 60 + 30) return 'chieu';
+  if (total < 21 * 60) return 'toi';
+  return 'truoc_ngu';
+}
+
+function getTimeSlotName(timeStr) {
+  const slot = mapTimeToSlot(timeStr);
+  return SLOTS[slot] || 'Cữ uống';
+}
+
+function renderRxTimeTags() {
+  const container = $('rx-time-tags');
+  if (!container) return;
+  container.replaceChildren();
+  selectedRxTimes.sort();
+
+  if (!selectedRxTimes.length) {
+    container.append(h('span', { class: 'text-xs text-slate-400 italic' }, 'Chưa chọn mốc giờ nào (chọn giờ bên dưới và bấm "Thêm")'));
+    return;
   }
+
+  for (const t of selectedRxTimes) {
+    const slotName = getTimeSlotName(t);
+    container.append(
+      h('span', { class: 'inline-flex items-center gap-1.5 px-2.5 py-1 bg-teal-50 text-teal-800 border border-teal-200 text-xs font-bold rounded-lg transition-all' },
+        `⏰ ${t} (${slotName})`,
+        h('button', {
+          type: 'button',
+          class: 'hover:text-rose-600 text-teal-500 font-bold ml-1 text-sm leading-none cursor-pointer',
+          title: `Xóa mốc ${t}`,
+          onclick: (e) => { e.preventDefault(); removeRxTime(t); }
+        }, '✕')
+      )
+    );
+  }
+}
+
+function addRxTime(timeStr) {
+  if (!timeStr || !timeStr.includes(':')) {
+    toast('Vui lòng chọn mốc giờ hợp lệ (HH:MM)', 'error');
+    return;
+  }
+  const clean = timeStr.trim();
+  if (selectedRxTimes.includes(clean)) {
+    toast(`Mốc giờ ${clean} đã có trong danh sách`, 'warning');
+    return;
+  }
+  if (selectedRxTimes.length >= 5) {
+    toast('Tối đa 5 mốc giờ cho mỗi loại thuốc', 'warning');
+    return;
+  }
+  selectedRxTimes.push(clean);
+  renderRxTimeTags();
+}
+
+function removeRxTime(timeStr) {
+  selectedRxTimes = selectedRxTimes.filter((t) => t !== timeStr);
+  renderRxTimeTags();
+}
+
+function buildSlotChoices() {
+  renderRxTimeTags();
+
+  const btnAdd = $('rx-btn-add-time');
+  const inputTime = $('rx-custom-time');
+  if (btnAdd && inputTime) {
+    btnAdd.addEventListener('click', (e) => {
+      e.preventDefault();
+      addRxTime(inputTime.value);
+    });
+  }
+
+  document.querySelectorAll('.rx-quick-time').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const t = btn.dataset.time;
+      if (t) addRxTime(t);
+    });
+  });
 }
 
 async function openPatient(p) {
@@ -596,7 +677,8 @@ async function openPatient(p) {
   $('pd-sub').textContent = [p.phone, p.email].filter(Boolean).join(' · ') || 'Chưa có thông tin liên hệ';
   setError($('rx-error'), '');
   $('presc-form').reset();
-  document.querySelector('input[name=rx-slot][value=sang]').checked = true;
+  selectedRxTimes = ['07:00'];
+  renderRxTimeTags();
   $('dlg-patient').showModal();
   await loadPatientDetail();
 }
@@ -623,11 +705,18 @@ async function loadPatientDetail() {
   ul.replaceChildren();
   if (!(presc.data || []).length) ul.append(h('li', { class: 'text-slate-500' }, 'Chưa có đơn thuốc.'));
   for (const r of presc.data || []) {
+    const parsed = parsePrescriptionTimes(r);
+    const timesList = Object.values(parsed.times);
+    const timeDisplay = timesList.length
+      ? timesList.map((t) => `⏰ ${t}`).join(', ')
+      : r.frequency.map((s) => SLOTS[s]).join(', ');
+    const displayInstruction = parsed.cleanInstruction;
+
     ul.append(h('li', { class: `flex justify-between items-center gap-2 rounded-xl border p-3 ${r.is_active ? 'border-slate-200' : 'opacity-50 border-slate-200'}` },
       h('div', {},
         h('p', { class: 'font-bold' }, r.drug_name, r.is_insulin ? ' 💉' : '', r.is_active ? '' : ' (đã ngừng)'),
-        h('p', { class: 'text-slate-600' }, [r.dosage, r.frequency.map((s) => SLOTS[s]).join(', ')].filter(Boolean).join(' · ')),
-        r.instruction && h('p', { class: 'text-xs text-slate-400' }, r.instruction)),
+        h('p', { class: 'text-slate-600 font-medium' }, [r.dosage, timeDisplay].filter(Boolean).join(' · ')),
+        displayInstruction && h('p', { class: 'text-xs text-slate-400 mt-0.5' }, displayInstruction)),
       h('div', { class: 'flex items-center gap-1.5 shrink-0' },
         r.is_active && h('button', { class: 'btn px-2.5 py-1.5 text-xs border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100', onclick: () => stopPrescription(r.id) }, 'Ngừng thuốc'),
         h('button', { class: 'btn px-2.5 py-1.5 text-xs border border-rose-200 text-rose-700 bg-rose-50 font-bold hover:bg-rose-100', onclick: () => deletePrescription(r) }, '🗑️ Xóa đơn'))));
@@ -645,24 +734,48 @@ async function onAddPrescription(e) {
   e.preventDefault();
   setError($('rx-error'), '');
   const drug_name = $('rx-name').value.trim();
-  const frequency = [...document.querySelectorAll('input[name=rx-slot]:checked')].map((i) => i.value);
   if (!drug_name) { setError($('rx-error'), 'Vui lòng nhập tên thuốc'); return; }
-  if (!frequency.length) { setError($('rx-error'), 'Chọn ít nhất một khung giờ'); return; }
+  if (!selectedRxTimes.length) { setError($('rx-error'), 'Vui lòng thêm ít nhất một mốc giờ uống thuốc'); return; }
+
+  // Sắp xếp các mốc giờ theo thứ tự tăng dần
+  selectedRxTimes.sort();
+
+  // Ánh xạ mốc giờ vào các slot hợp lệ của Supabase (sang, trua, chieu, toi, truoc_ngu)
+  const assignedSlots = [];
+  const availableSlots = [...SLOT_ORDER];
+
+  for (const t of selectedRxTimes) {
+    const idealSlot = mapTimeToSlot(t);
+    if (availableSlots.includes(idealSlot)) {
+      assignedSlots.push(idealSlot);
+      availableSlots.splice(availableSlots.indexOf(idealSlot), 1);
+    } else {
+      const fallbackSlot = availableSlots.shift();
+      if (fallbackSlot) assignedSlots.push(fallbackSlot);
+    }
+  }
+
+  assignedSlots.sort((a, b) => SLOT_ORDER.indexOf(a) - SLOT_ORDER.indexOf(b));
+
+  const rawInst = $('rx-inst').value.trim();
+  const encodedInstruction = `[TIMES:${selectedRxTimes.join(',')}] ${rawInst}`.trim();
+
   const btn = $('rx-submit'); btn.disabled = true;
   const { error } = await sb.from('prescriptions').insert({
     patient_id: currentPatient.id,
     drug_name,
     dosage: $('rx-dose').value.trim(),
-    instruction: $('rx-inst').value.trim(),
+    instruction: encodedInstruction,
     is_insulin: $('rx-insulin').checked,
-    frequency,
+    frequency: assignedSlots,
     created_by: me.id,
   });
   btn.disabled = false;
-  if (error) { setError($('rx-error'), 'Không lưu được đơn thuốc'); return; }
+  if (error) { setError($('rx-error'), 'Không lưu được đơn thuốc: ' + (error.message || '')); return; }
   toast('Đã thêm đơn thuốc');
   $('presc-form').reset();
-  document.querySelector('input[name=rx-slot][value=sang]').checked = true;
+  selectedRxTimes = ['07:00'];
+  renderRxTimeTags();
   loadPatientDetail();
 }
 

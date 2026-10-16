@@ -1,55 +1,51 @@
-# Kế Hoạch Triển Khai: Sửa Lỗi Đổi Mật Khẩu Lần Đầu & Bổ Sung Nút Return
+# Kế Hoạch Triển Khai: Tùy Chỉnh Giờ Uống Tự Do Cho Từng Thuốc (Custom Medication Times)
 
-## 1. Tổng quan & Phân tích nguyên nhân gốc rễ (Root Cause Analysis)
+## 1. Tổng quan & Mục tiêu
 
-### 1.1. Sai sót gây ra lỗi "Đã đổi mật khẩu nhưng chưa cập nhật hồ sơ, vui lòng thử lại":
-- **Nguyên nhân kỹ thuật:** 
-  - Trong mã nguồn `frontend/app.js` (dòng 574–579), hàm `onChangePassword` thực hiện cập nhật đồng thời 2 trường:
-    ```javascript
-    await sb.from('profiles').update({
-      is_first_login: false,
-      must_change_password: false,
-    }).eq('id', profile.id);
-    ```
-  - Tuy nhiên, trên cơ sở dữ liệu Supabase thực tế đang chạy, bảng `public.profiles` hiện chỉ có cột `must_change_password: boolean`, **chưa có cột `is_first_login`** (mã lỗi `PGRST204: Could not find the 'is_first_login' column of 'profiles' in the schema cache`).
-  - Do đó, lệnh đổi mật khẩu Auth (`sb.auth.updateUser`) thì đã thành công, nhưng lệnh cập nhật profile bảng `profiles` bị Supabase từ chối (HTTP 400), dẫn đến thông báo lỗi màu đỏ trên màn hình.
-- **Giải pháp xử lý:**
-  - **Tầng Frontend (`frontend/app.js`):** Xử lý tương thích thông minh (Graceful Fallback). Kiểm tra xem `is_first_login` có tồn tại trong `profile` hiện tại hay không trước khi gửi lên Supabase; luôn cập nhật `must_change_password: false`. Như vậy hệ thống sẽ hoạt động mượt mà 100% ngay lập tức mà không bao giờ bị lỗi 400 nữa.
-  - **Tầng Database (Tùy chọn):** Hướng dẫn bổ sung câu lệnh SQL `alter table public.profiles add column if not exists is_first_login boolean not null default true;` vào Supabase SQL Editor nếu muốn đồng bộ schema.
+Nâng cấp hệ thống quản lý đơn thuốc để bác sĩ/dược sĩ có thể **tự do thiết lập giờ uống cụ thể (Time Picker) cho từng loại thuốc** khi nhập đơn, thay vì bị giới hạn bởi 5 khung giờ mặc định (Sáng, Trưa, Chiều, Tối, Trước ngủ):
 
-### 1.2. Vấn đề thiếu nút Return (Thoát ra):
-- **Hiện trạng:** Màn hình `view-change-pw` chỉ có duy nhất nút "Lưu mật khẩu". Nếu người dùng nhập nhầm tài khoản, quên mật khẩu cũ hoặc gặp lỗi mạng, họ hoàn toàn bị kẹt ở màn hình này không thể quay ra đăng nhập lại.
-- **Giải pháp xử lý:**
-  - Bổ sung nút quay lại ở màn hình `#view-change-pw`:
-    - Cách 1: Nút "← Quay lại đăng nhập" (dạng link / button phụ bên dưới nút "Lưu mật khẩu").
-    - Cách 2: Nút icon mũi tên quay lại ở góc trên card form.
-  - Hành động khi bấm nút: Đăng xuất phiên hiện tại (`sb.auth.signOut()`), xóa các trường mật khẩu đang nhập, và chuyển người dùng về màn hình đăng nhập (`view-login`).
+1. **Giao diện kê đơn linh hoạt (Admin):**
+   - Bác sĩ có thể nhập bất kỳ mốc giờ nào (ví dụ: `06:30`, `14:00`, `20:15`) bằng bộ chọn giờ `<input type="time">`.
+   - Có sẵn các nút gợi ý nhanh (`07:00`, `11:30`, `16:30`, `19:00`, `21:30`) để thao tác nhanh chỉ bằng 1 chạm.
+   - Các mốc giờ đã chọn hiển thị dạng thẻ tag trực quan (`[ ⏰ 06:30 ✕ ]`, `[ ⏰ 19:30 ✕ ]`), có thể bấm ✕ để xóa dễ dàng.
+2. **Lưu trữ & Tương thích dữ liệu (Data Compatibility):**
+   - Giờ uống cụ thể được mã hóa chuẩn hóa trong đơn thuốc `[TIMES:06:30,19:30]` kèm theo hướng dẫn sử dụng.
+   - Tự động ánh xạ mốc giờ vào các cữ tương ứng (`sang`, `trua`, `chieu`, `toi`, `truoc_ngu`) để đảm bảo tính toàn vẹn và tuân thủ 100% cơ sở dữ liệu Supabase mà không làm vỡ các ràng buộc quan hệ hiện có.
+3. **Hiển thị trực quan cho bệnh nhân (Patient App):**
+   - Trên màn hình của bệnh nhân, từng cữ thuốc sẽ hiển thị rõ mốc giờ bác sĩ đã dặn: ví dụ **"⏰ 06:30 · Sáng"** hay **"⏰ 20:15 · Tối"**.
+   - Thứ tự các cữ thuốc trong ngày được tự động sắp xếp theo thứ tự thời gian từ sáng đến tối.
+4. **Nhắc nhở tự động chính xác từng phút (Backend Cron Notifier):**
+   - Tiến trình nhắc nhở chạy nền `reminder_worker()` mỗi phút sẽ kiểm tra giờ thực tế của từng thuốc.
+   - Đúng mốc giờ chỉ định (ví dụ `06:30`), hệ thống sẽ gửi Web Push thông báo ra màn hình điện thoại và gửi Email nhắc thuốc tới bệnh nhân.
 
 ---
 
 ## 2. Danh Sách Nhiệm Vụ (Task List)
 
-### Giai đoạn 1: Sửa lỗi cập nhật hồ sơ (Fix Bug Update Profile)
-- [ ] **Task 1: Cập nhật hàm `onChangePassword` trong `frontend/app.js`**
-  - **Mô tả:** Đảm bảo chỉ gửi các trường tồn tại trong bảng `profiles` (kiểm tra `if ('is_first_login' in profile)`), luôn cập nhật `must_change_password: false`.
-  - **Tiêu chí nghiệm thu:** Đổi mật khẩu lần đầu thành công 100%, không bị báo lỗi "chưa cập nhật hồ sơ", chuyển mượt mà vào giao diện ứng dụng chính `enterApp()`.
+### Giai đoạn 1: Giao diện Kê Đơn Tùy Chỉnh Giờ (Frontend Admin)
+- [x] **Task 1: Cập nhật giao diện chọn giờ trong `frontend/admin.html`**
+  - Thay thế danh sách checkbox cũ bằng khu vực chọn mốc giờ: Time input + Nút "Thêm giờ" + Các nút gợi ý nhanh + Vùng hiển thị tags mốc giờ đã chọn.
+- [x] **Task 2: Xử lý logic chọn giờ và lưu đơn trong `frontend/admin.js`**
+  - Quản lý danh sách mốc giờ dạng mảng `['06:30', '19:00']`.
+  - Hàm tự động phân bổ mốc giờ vào các `frequency` slot tương ứng.
+  - Lưu mã hóa `[TIMES:...]` vào `instruction` và hiển thị đẹp mắt trong danh sách đơn thuốc của bệnh nhân.
 
-### Giai đoạn 2: Bổ sung nút Return / Thoát ra (Add Return / Exit Button)
-- [ ] **Task 2: Thêm nút Return vào giao diện `#view-change-pw` trong `frontend/index.html`**
-  - **Mô tả:** Bổ sung nút "← Quay lại đăng nhập" với phong cách y tế cao cấp, dễ bấm trên mobile.
-  - **Tiêu chí nghiệm thu:** Nút hiển thị rõ ràng, cân đối, chuẩn thiết kế mobile.
-- [ ] **Task 3: Gắn sự kiện xử lý nút Return trong `frontend/app.js`**
-  - **Mô tả:** Khi bấm Return, gọi `sb.auth.signOut()`, dọn dẹp các ô input và chuyển về màn hình `#view-login`.
-  - **Tiêu chí nghiệm thu:** Bệnh nhân bấm nút Return lập tức thoát ra màn hình đăng nhập an toàn.
+### Giai đoạn 2: Trải nghiệm Xem Lịch Thuốc của Bệnh Nhân (Frontend Patient App)
+- [x] **Task 3: Hàm trích xuất giờ `parsePrescriptionTimes()` trong `frontend/common.js`**
+  - Nhận diện thẻ `[TIMES:...]` từ đơn thuốc, trả về mốc giờ cụ thể cho từng cữ.
+- [x] **Task 4: Hiển thị mốc giờ trên thẻ thuốc và sắp xếp thứ tự trong `frontend/app.js`**
+  - Hiển thị badge mốc giờ `⏰ 06:30` trên từng cữ thuốc.
+  - Sắp xếp các loại thuốc trong ngày theo đúng mốc giờ thời gian thực tế.
 
-### Giai đoạn 3: Kiểm thử & Nghiệm thu
-- [ ] **Task 4: Kiểm thử luồng End-to-End**
-  - Tạo thử / kiểm tra với tài khoản mới: kiểm tra nút Return hoạt động đúng và luồng đổi mật khẩu thành công vào được app.
+### Giai đoạn 3: Hệ Thống Nhắc Nhở Tự Động Theo Giờ Từng Thuốc (Backend)
+- [x] **Task 5: Nâng cấp `check_and_send_reminders()` trong `backend/notifier.py`**
+  - Kiểm tra giờ thực tế của từng đơn thuốc theo `parse_prescription_times()`.
+  - Gửi thông báo Web Push và Email đúng vào phút chỉ định của từng loại thuốc.
 
 ---
 
 ## 3. Rủi ro & Giải pháp phòng ngừa
 | Rủi ro | Mức độ | Giải pháp |
 |---|---|---|
-| Bệnh nhân thoát ra nhưng phiên đăng nhập Auth vẫn còn lưu | Trung bình | Khi bấm Return, bắt buộc gọi `sb.auth.signOut()` để huỷ sạch session cũ trước khi về màn hình login |
-| Supabase có hay không có cột `is_first_login` | Thấp | Code frontend tự động kiểm tra key tồn tại trước khi update, tương thích cả 2 trường hợp |
+| Bác sĩ chọn 2 mốc giờ cùng rơi vào 1 khung buổi (ví dụ 07:00 và 08:00) | Trung bình | Tự động cảnh báo hoặc ánh xạ mốc giờ vào các cữ kế tiếp, đảm bảo mỗi mốc giờ có 1 bản ghi riêng trong nhật ký |
+| Đơn thuốc cũ trước đây không có mốc giờ cụ thể | Thấp | Tự động fallback về giờ mặc định của hệ thống (`07:00`, `11:30`, `19:00`), đảm bảo 100% tương thích ngược |

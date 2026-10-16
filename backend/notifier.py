@@ -1,4 +1,5 @@
 """Dịch vụ gửi email thông báo nhắc thuốc và kiểm tra lịch uống thuốc tự động."""
+from __future__ import annotations
 import asyncio
 import base64
 import email.message
@@ -17,6 +18,8 @@ import supa
 log = logging.getLogger("notifier")
 VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
+import re
+
 SLOT_NAMES = {
     "sang": "Buổi Sáng",
     "trua": "Buổi Trưa",
@@ -24,6 +27,27 @@ SLOT_NAMES = {
     "toi": "Buổi Tối",
     "truoc_ngu": "Trước Khi Ngủ",
 }
+
+
+def parse_prescription_times(p: dict) -> dict[str, str]:
+    """Trích xuất mapping {slot: 'HH:MM'} từ instruction [TIMES:06:30,19:00]."""
+    times = {}
+    inst = p.get("instruction") or ""
+    m = re.search(r"\[TIMES:([^\]]+)\]", inst)
+    if m:
+        t_list = [t.strip() for t in m.group(1).split(",") if t.strip()]
+        freq = p.get("frequency") or []
+        for idx, slot in enumerate(freq):
+            if idx < len(t_list):
+                times[slot] = t_list[idx]
+    return times
+
+
+def get_clean_instruction(instruction: str | None) -> str:
+    if not instruction:
+        return ""
+    return re.sub(r"\[TIMES:[^\]]+\]", "", instruction).strip()
+
 
 
 def generate_confirm_token(patient_id: str, prescription_id: str, date_str: str, time_slot: str) -> str:
@@ -563,7 +587,7 @@ def make_reminder_html(
 
 async def check_and_send_reminders(target_slot: str | None = None, force: bool = False) -> dict:
     """
-    Kiểm tra và gửi email nhắc thuốc cho khung giờ hiện tại (hoặc target_slot).
+    Kiểm tra và gửi thông báo nhắc thuốc (Web Push + Email) cho khung giờ hiện tại hoặc theo giờ riêng của từng thuốc.
     - target_slot: 'sang', 'trua', 'chieu', 'toi', 'truoc_ngu' hoặc None (tự động theo giờ thực tế)
     - force: nếu True, gửi bất kể giờ giấc (nhưng vẫn kiểm tra xem bệnh nhân đã uống chưa)
     """
@@ -573,63 +597,66 @@ async def check_and_send_reminders(target_slot: str | None = None, force: bool =
     cur_hm = now_vn.strftime("%H:%M")
 
     active_slot_times = get_custom_slot_times()
-    # Xác định khung giờ cần gửi
-    matched_slots = []
-    if target_slot:
-        matched_slots = [target_slot]
-    elif force:
-        matched_slots = list(active_slot_times.keys())
-    else:
-        # Tự động so sánh giờ hiện tại với các khung giờ đã cấu hình
-        for slot, slot_time in active_slot_times.items():
-            if cur_hm == slot_time:
-                matched_slots.append(slot)
 
-    if not matched_slots:
-        return {"status": "no_matched_slot", "time": cur_hm, "sent": 0}
+    # Lấy toàn bộ đơn thuốc đang hoạt động
+    try:
+        prescs = await supa.rest_get(
+            "prescriptions",
+            {
+                "select": "id,patient_id,drug_name,dosage,instruction,is_insulin,frequency,profiles!patient_id(full_name,email)",
+                "is_active": "eq.true",
+            },
+        )
+    except Exception as e:
+        log.error("Lỗi truy vấn prescriptions: %s", e)
+        return {"status": "query_error", "error": str(e), "sent": 0}
 
     sent_count = 0
     skipped_count = 0
     results = []
 
-    for slot in matched_slots:
-        slot_name = SLOT_NAMES.get(slot, slot)
-        # Lấy các đơn thuốc đang hoạt động có khung giờ này
-        # PostgREST cs (contains) cho array
-        try:
-            prescs = await supa.rest_get(
-                "prescriptions",
-                {
-                    "select": "id,patient_id,drug_name,dosage,instruction,is_insulin,frequency,profiles!patient_id(full_name,email)",
-                    "is_active": "eq.true",
-                    "frequency": f"cs.{{{slot}}}",
-                },
-            )
-        except Exception as e:
-            log.error("Lỗi truy vấn prescriptions cho slot %s: %s", slot, e)
-            continue
+    for p in prescs:
+        prof = p.get("profiles") or {}
+        patient_id = p["patient_id"]
+        p_id = p["id"]
+        patient_name = prof.get("full_name") or "Bệnh nhân"
+        patient_email = (prof.get("email") or "").strip()
+        p_times = parse_prescription_times(p)
+        clean_inst = get_clean_instruction(p.get("instruction"))
 
-        for p in prescs:
-            prof = p.get("profiles") or {}
-            patient_id = p["patient_id"]
-            p_id = p["id"]
-            patient_name = prof.get("full_name") or "Bệnh nhân"
-            patient_email = (prof.get("email") or "").strip()
+        for slot in p.get("frequency", []):
+            exact_time = p_times.get(slot) or active_slot_times.get(slot, "07:00")
+            slot_name = SLOT_NAMES.get(slot, slot)
+
+            # Kiểm tra xem có khớp giờ gửi không
+            should_send = False
+            if target_slot:
+                should_send = (slot == target_slot)
+            elif force:
+                should_send = True
+            else:
+                should_send = (cur_hm == exact_time)
+
+            if not should_send:
+                continue
 
             # 1. Kiểm tra bệnh nhân đã bấm 'taken' chưa
-            logs = await supa.rest_get(
-                "daily_logs",
-                {
-                    "prescription_id": f"eq.{p_id}",
-                    "date": f"eq.{cur_date}",
-                    "time_slot": f"eq.{slot}",
-                    "status": "eq.taken",
-                    "select": "id",
-                },
-            )
-            if logs:
-                skipped_count += 1
-                continue  # Đã uống rồi, không nhắc nữa
+            try:
+                logs = await supa.rest_get(
+                    "daily_logs",
+                    {
+                        "prescription_id": f"eq.{p_id}",
+                        "date": f"eq.{cur_date}",
+                        "time_slot": f"eq.{slot}",
+                        "status": "eq.taken",
+                        "select": "id",
+                    },
+                )
+                if logs:
+                    skipped_count += 1
+                    continue  # Đã uống rồi, không nhắc nữa
+            except Exception as e_log:
+                log.error("Lỗi kiểm tra daily_logs: %s", e_log)
 
             # 2. GỬI WEB PUSH TRỰC TIẾP ĐẾN THIẾT BỊ / ĐIỆN THOẠI BỆNH NHÂN (NẾU ĐÃ BẬT CHUÔNG)
             try:
@@ -653,13 +680,13 @@ async def check_and_send_reminders(target_slot: str | None = None, force: bool =
                     )
                     if not push_already_sent:
                         verb = "tiêm" if p.get("is_insulin") else "uống"
-                        push_title = f"🔔 Đến giờ {verb} thuốc: {slot_name}"
-                        push_body = f"💊 {p['drug_name']} ({p.get('dosage') or ''}). {p.get('instruction') or ''}".strip()
+                        push_title = f"🔔 Đến giờ {verb} thuốc (⏰ {exact_time} · {slot_name})"
+                        push_body = f"💊 {p['drug_name']} ({p.get('dosage') or ''}). {clean_inst}".strip()
                         push_payload = {
                             "title": push_title,
                             "body": push_body,
                             "url": "/index.html",
-                            "tag": f"med-{slot}",
+                            "tag": f"med-{p_id}-{slot}",
                         }
                         push_ok = False
                         for sub_row in patient_subs:
@@ -684,62 +711,64 @@ async def check_and_send_reminders(target_slot: str | None = None, force: bool =
                                 )
                             except Exception as ex:
                                 log.error("Lỗi ghi reminder_log (push): %s", ex)
-                            results.append({"patient": patient_name, "drug": p["drug_name"], "slot": slot, "type": "push"})
+                            results.append({"patient": patient_name, "drug": p["drug_name"], "slot": slot, "time": exact_time, "type": "push"})
             except Exception as e_push:
                 log.error("Lỗi gửi Web Push cho bệnh nhân %s: %s", patient_id, e_push)
 
             # 3. GỬI EMAIL NHẮC NHỞ (NẾU CÓ ĐĂNG KÝ EMAIL)
             if patient_email and "@" in patient_email:
-                already_sent_email = await supa.rest_get(
-                    "reminder_log",
-                    {
-                        "prescription_id": f"eq.{p_id}",
-                        "date": f"eq.{cur_date}",
-                        "time_slot": f"eq.{slot}",
-                        "channel": "eq.email",
-                        "select": "prescription_id",
-                    },
-                )
-                if not already_sent_email:
-                    sig = generate_confirm_token(patient_id, p_id, cur_date, slot)
-                    confirm_url = f"{s.app_url}/api/confirm-dose?p={patient_id}&rx={p_id}&d={cur_date}&s={slot}&sig={sig}"
-                    subject = f"[Nhắc thuốc] Đã đến giờ dùng thuốc {slot_name} ({p['drug_name']})"
-                    html = make_reminder_html(
-                        patient_name,
-                        p["drug_name"],
-                        p.get("dosage", ""),
-                        p.get("instruction", ""),
-                        slot_name,
-                        p.get("is_insulin", False),
-                        confirm_url=confirm_url,
-                        app_url=s.app_url,
+                try:
+                    already_sent_email = await supa.rest_get(
+                        "reminder_log",
+                        {
+                            "prescription_id": f"eq.{p_id}",
+                            "date": f"eq.{cur_date}",
+                            "time_slot": f"eq.{slot}",
+                            "channel": "eq.email",
+                            "select": "prescription_id",
+                        },
                     )
-                    text = f"Chào {patient_name},\nĐã đến giờ {slot_name}. Vui lòng dùng thuốc {p['drug_name']} ({p.get('dosage','')}).\nHướng dẫn: {p.get('instruction','')}\n\n1. Bấm vào link sau để xác nhận Đã dùng thuốc: {confirm_url}\n2. Mở ứng dụng theo dõi trên điện thoại: {s.app_url}/"
+                    if not already_sent_email:
+                        sig = generate_confirm_token(patient_id, p_id, cur_date, slot)
+                        confirm_url = f"{s.app_url}/api/confirm-dose?p={patient_id}&rx={p_id}&d={cur_date}&s={slot}&sig={sig}"
+                        subject = f"[Nhắc thuốc ⏰ {exact_time}] Đã đến giờ dùng thuốc ({p['drug_name']})"
+                        html = make_reminder_html(
+                            patient_name,
+                            p["drug_name"],
+                            p.get("dosage", ""),
+                            clean_inst,
+                            f"{slot_name} (⏰ {exact_time})",
+                            p.get("is_insulin", False),
+                            confirm_url=confirm_url,
+                            app_url=s.app_url,
+                        )
+                        text = f"Chào {patient_name},\nĐã đến giờ {slot_name} (⏰ {exact_time}). Vui lòng dùng thuốc {p['drug_name']} ({p.get('dosage','')}).\nHướng dẫn: {clean_inst}\n\n1. Bấm vào link sau để xác nhận Đã dùng thuốc: {confirm_url}\n2. Mở ứng dụng theo dõi trên điện thoại: {s.app_url}/"
 
-                    ok = await send_email(patient_email, subject, html, text)
-                    if ok:
-                        sent_count += 1
-                        try:
-                            await supa.rest_post(
-                                "reminder_log",
-                                {
-                                    "patient_id": patient_id,
-                                    "prescription_id": p_id,
-                                    "date": cur_date,
-                                    "time_slot": slot,
-                                    "channel": "email",
-                                },
-                            )
-                        except Exception as ex:
-                            log.error("Lỗi ghi reminder_log (email): %s", ex)
-                        results.append({"patient": patient_name, "drug": p["drug_name"], "slot": slot, "type": "email"})
+                        ok = await send_email(patient_email, subject, html, text)
+                        if ok:
+                            sent_count += 1
+                            try:
+                                await supa.rest_post(
+                                    "reminder_log",
+                                    {
+                                        "patient_id": patient_id,
+                                        "prescription_id": p_id,
+                                        "date": cur_date,
+                                        "time_slot": slot,
+                                        "channel": "email",
+                                    },
+                                )
+                            except Exception as ex:
+                                log.error("Lỗi ghi reminder_log (email): %s", ex)
+                            results.append({"patient": patient_name, "drug": p["drug_name"], "slot": slot, "time": exact_time, "type": "email"})
+                except Exception as e_mail:
+                    log.error("Lỗi gửi email cho bệnh nhân %s: %s", patient_id, e_mail)
 
     return {
         "status": "ok",
         "time": cur_hm,
-        "slots": matched_slots,
         "sent": sent_count,
-        "skipped_already_taken_or_sent": skipped_count,
+        "skipped_already_taken": skipped_count,
         "details": results,
     }
 
@@ -751,23 +780,10 @@ async def check_and_mark_overdue_missed():
     cur_minutes = now.hour * 60 + now.minute
     slot_times = get_custom_slot_times()
 
-    overdue_slots = []
-    for slot, time_str in slot_times.items():
-        try:
-            h, m = map(int, time_str.split(":"))
-            scheduled_minutes = h * 60 + m
-            if cur_minutes >= scheduled_minutes + 60:
-                overdue_slots.append(slot)
-        except Exception:
-            continue
-
-    if not overdue_slots:
-        return
-
     try:
         prescs = await supa.rest_get(
             "prescriptions",
-            {"is_active": "eq.true", "select": "id,patient_id,frequency"},
+            {"is_active": "eq.true", "select": "id,patient_id,frequency,instruction"},
         )
     except Exception as e:
         log.error("Lỗi lấy đơn thuốc kiểm tra quá hạn: %s", e)
@@ -776,32 +792,42 @@ async def check_and_mark_overdue_missed():
     for p in prescs:
         p_id = p["id"]
         patient_id = p["patient_id"]
+        p_times = parse_prescription_times(p)
+
         for slot in p.get("frequency", []):
-            if slot in overdue_slots:
-                try:
-                    existing = await supa.rest_get(
+            time_str = p_times.get(slot) or slot_times.get(slot, "07:00")
+            try:
+                h, m = map(int, time_str.split(":"))
+                scheduled_minutes = h * 60 + m
+                if cur_minutes < scheduled_minutes + 60:
+                    continue  # Chưa quá 1 tiếng
+            except Exception:
+                continue
+
+            try:
+                existing = await supa.rest_get(
+                    "daily_logs",
+                    {
+                        "prescription_id": f"eq.{p_id}",
+                        "date": f"eq.{cur_date}",
+                        "time_slot": f"eq.{slot}",
+                        "select": "id,status",
+                    },
+                )
+                if not existing:
+                    await supa.rest_post(
                         "daily_logs",
                         {
-                            "prescription_id": f"eq.{p_id}",
-                            "date": f"eq.{cur_date}",
-                            "time_slot": f"eq.{slot}",
-                            "select": "id,status",
+                            "patient_id": patient_id,
+                            "prescription_id": p_id,
+                            "date": cur_date,
+                            "time_slot": slot,
+                            "status": "missed",
+                            "notes": f"Hệ thống tự động ghi nhận do quá hạn 1 tiếng (Lịch: {time_str})",
                         },
                     )
-                    if not existing:
-                        await supa.rest_post(
-                            "daily_logs",
-                            {
-                                "patient_id": patient_id,
-                                "prescription_id": p_id,
-                                "date": cur_date,
-                                "time_slot": slot,
-                                "status": "missed",
-                                "notes": "Hệ thống tự động ghi nhận do quá hạn 1 tiếng",
-                            },
-                        )
-                except Exception as ex:
-                    log.error("Lỗi tự động ghi nhận cữ thuốc quá hạn: %s", ex)
+            except Exception as ex:
+                log.error("Lỗi tự động ghi nhận cữ thuốc quá hạn: %s", ex)
 
 
 async def reminder_worker():
