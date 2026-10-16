@@ -180,7 +180,10 @@ async def reset_password(request: Request, patient_id: str, admin: CurrentUser =
     r = await supa.admin_update_user(patient_id, {"password": s.default_patient_password})
     if r.status_code >= 400:
         raise HTTPException(502, "Không đặt lại được mật khẩu")
-    await supa.rest_patch("profiles", {"id": f"eq.{patient_id}"}, {"must_change_password": True, "is_first_login": True})
+    try:
+        await supa.rest_patch("profiles", {"id": f"eq.{patient_id}"}, {"must_change_password": True, "is_first_login": True})
+    except Exception:
+        await supa.rest_patch("profiles", {"id": f"eq.{patient_id}"}, {"must_change_password": True})
     log.info("admin=%s đặt lại mật khẩu bệnh nhân %s", admin.id, patient_id)
     return {"ok": True, "default_password": s.default_patient_password}
 

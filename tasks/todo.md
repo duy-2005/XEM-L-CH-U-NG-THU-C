@@ -1,125 +1,18 @@
 # Danh Sách Nhiệm Vụ Triển Khai (Todo List)
 
-## Giai đoạn 1: Cơ sở Dữ liệu & Cấu hình Nền tảng
-- [x] **Task 1.1: Migration Database cho `is_first_login` & RLS**
-  - **Mô tả:** Cập nhật `sql/01_schema.sql` thêm cột `is_first_login boolean not null default true` vào `profiles`, cấp quyền update `is_first_login` cho bệnh nhân và trigger bảo vệ.
-  - **Tiêu chí nghiệm thu:** Bảng `profiles` có cột `is_first_login`; bệnh nhân có thể update cờ này sau khi đổi mật khẩu; RLS không bị vi phạm.
-- [x] **Task 1.2: Bổ sung thư viện & biến môi trường VAPID / Alert**
-  - **Mô tả:** Cập nhật `requirements.txt` (thêm `pywebpush`, `cryptography`), bổ sung `DOCTOR_ALERT_EMAIL` và xử lý VAPID key trong `backend/config.py` và `.env.example`.
-  - **Tiêu chí nghiệm thu:** Cài đặt dependencies không lỗi; `config.py` đọc đúng VAPID keys và `doctor_alert_email`.
+## Giai đoạn 1: Sửa lỗi cập nhật hồ sơ khi đổi mật khẩu
+- [x] **Task 1: Cập nhật hàm `onChangePassword` trong `frontend/app.js`**
+  - **Mô tả:** Thay đổi payload gửi lên `profiles` thành payload tương thích linh hoạt: luôn cập nhật `must_change_password: false`, chỉ kèm `is_first_login: false` nếu thuộc tính này có trong `profile`.
+  - **Tiêu chí nghiệm thu:** Không bị lỗi PGRST204 400 từ Supabase; cập nhật profile thành công sau khi đổi mật khẩu.
 
-### Checkpoint 1: Database và môi trường sẵn sàng. (Đạt)
+## Giai đoạn 2: Bổ sung nút Return / Thoát ra ở màn hình Đặt mật khẩu mới
+- [x] **Task 2: Thêm nút Return trong `frontend/index.html`**
+  - **Mô tả:** Bổ sung nút quay lại "← Quay lại đăng nhập" bên dưới nút "Lưu mật khẩu" trong form `#force-pw-form` ở `#view-change-pw`.
+  - **Tiêu chí nghiệm thu:** Giao diện cân đối, nút nổi bật, dễ bấm trên màn hình điện thoại.
+- [x] **Task 3: Gắn sự kiện đăng xuất và điều hướng cho nút Return trong `frontend/app.js`**
+  - **Mô tả:** Bắt sự kiện click nút `#force-pw-back`, gọi `await sb.auth.signOut()`, xóa form và chuyển sang `showView('login')`.
+  - **Tiêu chí nghiệm thu:** Nhấn nút sẽ thoát ngay về màn hình đăng nhập an toàn.
 
----
-
-## Giai đoạn 2: Xác thực & Quản lý Đăng nhập (Tính năng 1 & 2)
-- [x] **Task 2.1: Admin Google OAuth & Hệ thống Phê duyệt Quản trị viên (Approval Workflow)**
-  - **Mô tả:**
-    - Cung cấp nút "Đăng nhập với Google" qua Google OAuth Supabase trên `admin.html`.
-    - Phân quyền: Cột `is_approved`, `approval_status` trong `profiles`. Hàm RLS `is_admin()` và backend `require_admin` chặn người dùng chưa được duyệt.
-    - Màn hình `#view-approval` cho tài khoản chưa duyệt với nút "Gửi yêu cầu xin duyệt" (`POST /api/admin/request-approval`).
-    - Phê duyệt 2 chiều:
-      1. Email link 1-click có ký số HMAC 48h (`GET /api/admin/approve-account?token=...`).
-      2. Tab "🛡️ Duyệt Admin" trực tiếp trong `admin.html` (`GET /api/admin/pending-approvals`, `POST /api/admin/approve-user`).
-  - **Tiêu chí nghiệm thu:** Đăng nhập Google mượt mà; tài khoản chưa duyệt bị chặn vào Dashboard; gửi email duyệt tới Super Admin; duyệt qua email hoặc dashboard thành công và gửi mail chúc mừng.
-- [x] **Task 2.2: Persistent Login & Bắt buộc Đổi Mật khẩu với `is_first_login`**
-  - **Mô tả:** Trong `frontend/app.js`, đảm bảo Supabase client duy trì phiên lâu dài (`persistSession: true`); khi đăng nhập kiểm tra `is_first_login`. Nếu `true`, chuyển thẳng tới form đổi mật khẩu; đổi thành công thì cập nhật `is_first_login = false`.
-  - **Tiêu chí nghiệm thu:** Đóng trình duyệt mở lại vẫn giữ đăng nhập; tài khoản mới bắt buộc đổi mật khẩu mới vào được app.
-
-### Checkpoint 2: Xác thực Google OAuth, phê duyệt quản trị viên và phiên đăng nhập bệnh nhân hoàn tất. (Đạt)
-
----
-
-## Giai đoạn 3: Trải nghiệm Bệnh nhân (Tính năng 3 & 4)
-- [x] **Task 3.1: Ngôn ngữ ADR Dễ hiểu & Neo Hành vi**
-  - **Mô tả:** Cập nhật `frontend/common.js` và `frontend/index.html` thay các thuật ngữ lâm sàng ("Hạ đường huyết", "Phát ban", "Tiêu chảy") thành các mô tả triệu chứng dân dã dễ hiểu, và thêm các neo hành vi vào 3 mức độ nhẹ, vừa, nặng.
-  - **Tiêu chí nghiệm thu:** Giao diện hiển thị đúng thuật ngữ; gửi báo cáo lưu đúng dữ liệu; admin dashboard hiển thị mượt mà.
-- [x] **Task 3.2: Logic Quá hạn Thuốc 1 Tiếng & Cho Phép Uống Bù**
-  - **Mô tả:** Trong `frontend/app.js` và `backend/notifier.py`, kiểm tra thời gian hiện tại so với giờ cữ thuốc. Nếu quá 60 phút mà chưa uống, tự động đánh dấu "Bỏ lỡ"; khi bệnh nhân uống bù và bấm vào thẻ, hệ thống chuyển trạng thái về "Đã dùng" (`taken`) và xóa cảnh báo.
-  - **Tiêu chí nghiệm thu:** Thẻ thuốc sau 1 tiếng hiển thị "Bỏ lỡ"; bấm uống bù cập nhật thành công thành "Đã uống".
-
-### Checkpoint 3: Giao diện bệnh nhân thân thiện và logic tuân thủ thuốc thông minh. (Đạt)
-
----
-
-## Giai đoạn 4: Quản trị & Xóa Dữ liệu (Tính năng 5)
-- [x] **Task 4.1: API Xóa Bệnh nhân & Đơn thuốc (Cascade Delete)**
-  - **Mô tả:** Tạo endpoint `DELETE /api/admin/patients/{patient_id}` và `DELETE /api/admin/prescriptions/{prescription_id}` trong `backend/main.py`. Kiểm tra quyền admin và thực hiện xóa cascade triệt để.
-  - **Tiêu chí nghiệm thu:** Xóa bệnh nhân dọn sạch hồ sơ, đơn thuốc và lịch sử; xóa đơn thuốc dọn sạch daily_logs tương ứng.
-- [x] **Task 4.2: Giao diện Nút Xóa trên Admin Dashboard**
-  - **Mô tả:** Trong `frontend/admin.html` và `frontend/admin.js`, thêm nút "Xóa" cạnh mỗi bệnh nhân và nút "Xóa đơn" cạnh mỗi đơn thuốc, có hộp thoại xác nhận trước khi xóa.
-  - **Tiêu chí nghiệm thu:** Thao tác xóa hoạt động trơn tru từ giao diện admin, có xác nhận phòng ngừa xóa nhầm.
-
-### Checkpoint 4: Admin quản lý và dọn dẹp dữ liệu an toàn. (Đạt)
-
----
-
-## Giai đoạn 5: Cảnh báo Thời gian Thực (Tính năng 6 & 7)
-- [x] **Task 5.1: Gửi Email Cảnh báo Khẩn cấp qua Gmail SMTP**
-  - **Mô tả:** Trong `backend/main.py` và `backend/notifier.py`, tạo pipeline tiếp nhận ADR / Đường huyết từ bệnh nhân (`/api/patient/adr`, `/api/patient/blood-sugar`); nếu có ADR hoặc Đường huyết > 13.9 mmol/L, kích hoạt gửi email khẩn cấp đến Bác sĩ với template HTML y tế cảnh báo.
-  - **Tiêu chí nghiệm thu:** Bệnh nhân ghi nhận chỉ số cao (>13.9) hoặc gửi ADR -> Bác sĩ nhận được email khẩn cấp chứa đầy đủ thông tin.
-- [x] **Task 5.2: Triển khai Web Push Notifications với VAPID**
-  - **Mô tả:**
-    - Backend: Dùng `pywebpush` gửi push payload bảo mật với VAPID keys; thêm endpoint đăng ký subscription `POST /api/admin/push-subscription`.
-    - Frontend: `admin.html` + `admin.js` thêm nút đăng ký thông báo; `service-worker.js` xử lý hiển thị push và định tuyến click về trang quản trị.
-  - **Tiêu chí nghiệm thu:** Bác sĩ bật thông báo -> Khi có ca khẩn cấp, máy tính/điện thoại bác sĩ nhận ngay thông báo đẩy trên màn hình.
-
-### Checkpoint 5: Toàn bộ 7 tính năng ban đầu đã hoàn thành và kiểm thử thành công! (Đạt)
-
----
-
-## Giai đoạn 6: Cô lập & Định tuyến Thông báo Đẩy theo Nick Đăng Nhập
-- [x] **Task 6.1: Backend - Cô lập danh sách nhận tin & Lọc đúng vai trò Bác sĩ / Bệnh nhân**
-  - **Mô tả:** Trong `backend/notifier.py` sửa hàm `send_alert_push_to_admins`: Truy vấn danh sách admin đã duyệt (`role = 'admin'` VÀ `is_approved = true`), chỉ gửi push tới thiết bị thuộc các admin này. Tuyệt đối không gửi tới thiết bị của bệnh nhân.
-  - **Tiêu chí nghiệm thu:** Cảnh báo ADR / Cấp cứu chỉ gửi đến máy của Bác sĩ; máy bệnh nhân không nhận được cảnh báo này.
-- [x] **Task 6.2: Backend - API Hủy đăng ký (`POST /api/push-subscription/unsubscribe`)**
-  - **Mô tả:** Trong `backend/main.py`, tạo endpoint nhận `endpoint` của thiết bị để xóa bản ghi tương ứng khỏi bảng `push_subscriptions`.
-  - **Tiêu chí nghiệm thu:** Gọi API với endpoint -> Dòng subscription của máy đó bị xóa khỏi DB.
-- [x] **Task 6.3: Frontend - Tự động Đồng bộ Thiết bị với Tài khoản khi Đăng nhập (Auto Re-binding)**
-  - **Mô tả:** Trong `frontend/app.js` và `frontend/admin.js`, sau khi đăng nhập thành công (`afterLogin`), nếu trình duyệt đã có Push Subscription thì tự động gửi API đăng ký lại để gắn `endpoint` với `user_id` của tài khoản vừa đăng nhập.
-  - **Tiêu chí nghiệm thu:** Khi chuyển đổi tài khoản trên cùng thiết bị, database tự động cập nhật `user_id` mới nhất cho thiết bị đó.
-- [x] **Task 6.4: Frontend - Hủy liên kết Thiết bị khi Đăng xuất (Unbinding on Logout)**
-  - **Mô tả:** Khi bấm nút Đăng xuất trên `index.html` hoặc `admin.html`, gọi backend xóa subscription của thiết bị và hủy subscription trên browser (`sub.unsubscribe()`) trước khi hoàn tất đăng xuất.
-  - **Tiêu chí nghiệm thu:** Sau khi đăng xuất, máy tính/điện thoại không còn nhận bất kỳ thông báo nào của nick cũ.
-- [x] **Task 6.5: Frontend - Nút Bật/Tắt chuông 2 chiều linh hoạt (Toggle Push)**
-  - **Mô tả:** Cải tiến nút bật thông báo trên giao diện bệnh nhân và bác sĩ thành nút bật/tắt (Toggle): Người dùng có thể bật hoặc chủ động bấm tắt bất cứ lúc nào.
-  - **Tiêu chí nghiệm thu:** Bấm lần 1: Bật chuông; bấm lần 2: Tắt chuông và xóa subscription.
-
-### Checkpoint 6: Thông báo đẩy được cô lập 100% theo đúng tài khoản và thiết bị đang đăng nhập. (Đạt)
-
----
-
-## Giai đoạn 7: Tích hợp Nhập liệu bằng Giọng nói (Speech-to-Text) cho Bệnh nhân
-- [x] **Task 7.1: Bộ công cụ nhận diện giọng nói Web Speech API & Phân tích tiếng Việt**
-  - **Mô tả:** Trong `frontend/common.js` và `frontend/styles.css`, triển khai `isSpeechSupported()`, `parseVietnameseNumber()` (chuẩn hóa số đọc tiếng Việt sang số thực), `detectSugarContext()`, `detectSymptomsFromSpeech()` và bộ điều khiển `setupVoiceButton()`.
-  - **Tiêu chí nghiệm thu:** Phân tích chính xác số đo từ giọng nói (ví dụ: "sáu phẩy năm" -> 6.5, "5 chấm 8" -> 5.8); hiệu ứng sóng âm/nhấp nháy trực quan khi đang ghi âm.
-- [x] **Task 7.2: Nút bấm nói "🎤 Nói số đo" cho Form Đường huyết**
-  - **Mô tả:** Thêm nút bấm nói cạnh ô nhập chỉ số đường huyết trong `frontend/index.html` và tích hợp sự kiện trong `frontend/app.js`.
-  - **Tiêu chí nghiệm thu:** Bệnh nhân nói số đo đường huyết -> tự động điền số vào ô và tự động chọn thời điểm (đói / sau ăn).
-- [x] **Task 7.3: Nút bấm nói "🎤 Bấm để nói" cho Form Báo cáo Triệu chứng ADR**
-  - **Mô tả:** Thêm nút bấm nói cạnh ô mô tả triệu chứng bất thường; tự động trích xuất các triệu chứng thuốc được nhắc đến và tick chọn vào các checkbox tương ứng.
-  - **Tiêu chí nghiệm thu:** Lời nói được điền vào ô mô tả; tự động nhận diện từ khóa triệu chứng (chóng mặt, buồn nôn, đau đầu...) và tự động tick chọn.
-- [x] **Task 7.4: Modal Ghi nhận / Nói lý do Bỏ lỡ cữ thuốc & Hiển thị trên Dashboard Bác sĩ**
-  - **Mô tả:** Khi bấm "Bỏ lỡ" trên thẻ thuốc, mở modal `#dlg-missed-reason` cho phép bệnh nhân bấm nút nói hoặc nhập lý do quên thuốc; backend `backend/main.py` và dashboard `frontend/admin.js` đồng bộ hiển thị lý do này cho bác sĩ theo dõi.
-  - **Tiêu chí nghiệm thu:** Bệnh nhân nói/nhập lý do bỏ lỡ thuốc -> lưu vào DB; bác sĩ thấy trực tiếp lý do bên danh sách cảnh báo thuốc bỏ lỡ.
-
-### Checkpoint 7: Toàn bộ các vị trí phản hồi thông tin cho Bác sĩ ở phía Bệnh nhân đều hỗ trợ Nút bấm để nói (Đạt)
-
----
-
-## Giai đoạn 8: Chuẩn hóa Link Web Email Nhắc thuốc & Thử nghiệm Email Bệnh nhân
-- [x] **Task 8.1: Chuẩn hóa link web (`app_url`) & Nút mở ứng dụng trong Email nhắc thuốc**
-  - **Mô tả:** Trong `backend/config.py` và `backend/notifier.py`, tối ưu nhận diện domain Render thực tế (`RENDER_EXTERNAL_URL`), bổ sung liên kết mở ứng dụng trực tiếp từ email bên cạnh nút xác nhận 1-chạm và cập nhật trang hoàn tất xác nhận (`/api/confirm-dose`) dẫn về đúng domain app.
-  - **Tiêu chí nghiệm thu:** Link trong email trỏ chính xác về domain ứng dụng trên Render; bấm nút xác nhận hay nút mở app đều hoạt động chuẩn xác.
-- [x] **Task 8.2: Backend API Thử nghiệm Gửi Email Nhắc thuốc (`POST /api/patient/test-email`)**
-  - **Mô tả:** Tạo endpoint cho phép bệnh nhân bấm gửi thử email nhắc thuốc mẫu qua Gmail SMTP, tự động lấy thông tin thuốc hoặc tạo đơn mẫu Metformin với chữ ký số HMAC 1-chạm.
-  - **Tiêu chí nghiệm thu:** Gửi thành công email nhắc thuốc mẫu về địa chỉ email của bệnh nhân.
-- [x] **Task 8.3: Giao diện Nút "📧 Thử gửi Email" trên App Bệnh nhân**
-  - **Mô tả:** Bổ sung nút "📧 Thử gửi Email" tại hộp nhắc thuốc tab Hôm nay và tab Tài khoản; kèm modal nhập/chỉnh sửa email nhận thư thử nghiệm.
-  - **Tiêu chí nghiệm thu:** Bệnh nhân bấm nút -> mở hộp thoại -> bấm gửi -> nhận được email nhắc thuốc mẫu ngay lập tức.
-- [x] **Task 8.4: Đẩy toàn bộ mã nguồn lên Git/Render**
-  - **Mô tả:** Commit toàn bộ các thay đổi và chạy lệnh `git push origin main` để Render tự động build và deploy phiên bản mới nhất.
-  - **Tiêu chí nghiệm thu:** Code được push lên GitHub `origin/main` thành công và Render tự động kích hoạt deployment.
-
-### Checkpoint 8: Hoàn tất kiểm thử email nhắc thuốc cho bệnh nhân và triển khai lên Render. (Đạt)
-
+## Checkpoint Nghiệm thu
+- [x] Chạy kiểm thử tự động / kiểm tra cú pháp mã nguồn
+- [x] Xác nhận luồng: Bệnh nhân đăng nhập lần đầu -> có thể bấm Return thoát ra ngoài, hoặc nhập mật khẩu mới và lưu thành công không còn lỗi đỏ.

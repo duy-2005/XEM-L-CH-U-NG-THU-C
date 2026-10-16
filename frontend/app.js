@@ -339,6 +339,22 @@ async function authApi(path, opts = {}) {
 function bindEvents() {
   $('login-form').addEventListener('submit', onLogin);
   $('force-pw-form').addEventListener('submit', (e) => onChangePassword(e, 'force-new-pw', 'force-new-pw2', 'force-pw-error', 'force-pw-submit', true));
+  const forceBackBtn = $('force-pw-back');
+  if (forceBackBtn) {
+    forceBackBtn.addEventListener('click', async () => {
+      forceBackBtn.disabled = true;
+      try {
+        await sb.auth.signOut();
+      } catch (err) {
+        console.warn('Lỗi đăng xuất khi quay lại:', err);
+      }
+      $('force-new-pw').value = '';
+      $('force-new-pw2').value = '';
+      setError($('force-pw-error'), '');
+      forceBackBtn.disabled = false;
+      showView('login');
+    });
+  }
   $('pw-form').addEventListener('submit', (e) => onChangePassword(e, 'pw-new', 'pw-new2', 'pw-error', 'pw-submit', false));
   $('sugar-form').addEventListener('submit', onSaveSugar);
   $('adr-form').addEventListener('submit', onSubmitAdr);
@@ -571,14 +587,27 @@ async function onChangePassword(e, id1, id2, errId, btnId, first) {
     setError($(errId), 'Không đổi được mật khẩu. Hãy thử mật khẩu khác.');
     return;
   }
-  const { error: e2 } = await sb.from('profiles').update({
-    is_first_login: false,
-    must_change_password: false,
-  }).eq('id', profile.id);
+  // Cập nhật trạng thái đổi mật khẩu (tương thích linh hoạt với cả schema cũ và mới của Supabase)
+  const updatePayload = { must_change_password: false };
+  if (profile && 'is_first_login' in profile) {
+    updatePayload.is_first_login = false;
+  }
+  let { error: e2 } = await sb.from('profiles').update(updatePayload).eq('id', profile.id);
+  if (e2 && updatePayload.is_first_login !== undefined) {
+    console.warn('Thử cập nhật lại chỉ với must_change_password do DB chưa có is_first_login:', e2);
+    const retry = await sb.from('profiles').update({ must_change_password: false }).eq('id', profile.id);
+    e2 = retry.error;
+  }
   btn.disabled = false;
-  if (e2) { setError($(errId), 'Đã đổi mật khẩu nhưng chưa cập nhật hồ sơ, vui lòng thử lại'); return; }
-  profile.is_first_login = false;
-  profile.must_change_password = false;
+  if (e2) {
+    console.error('Lỗi cập nhật hồ sơ sau đổi mật khẩu:', e2);
+    setError($(errId), 'Đã đổi mật khẩu nhưng chưa cập nhật hồ sơ, vui lòng thử lại');
+    return;
+  }
+  if (profile) {
+    profile.is_first_login = false;
+    profile.must_change_password = false;
+  }
   $(id1).value = ''; $(id2).value = '';
   toast('Đã đổi mật khẩu thành công');
   if (first) enterApp();
