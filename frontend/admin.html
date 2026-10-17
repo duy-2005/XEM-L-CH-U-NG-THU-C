@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/styles.css?v=15">
+  <link rel="stylesheet" href="/styles.css?v=16">
 </head>
 <body class="text-slate-800 bg-slate-50">
   <div id="toast" role="status" aria-live="polite" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] hidden-view px-5 py-3.5 rounded-2xl text-white font-semibold shadow-2xl backdrop-blur-md"></div>
@@ -364,7 +364,21 @@
             </div>
           </div>
         </div>
-        <label class="flex items-center gap-2 text-sm font-semibold"><input id="rx-insulin" type="checkbox" class="w-4 h-4 accent-teal-600"> Đây là insulin (thuốc tiêm)</label>
+        <div class="space-y-2 pt-1 border-t border-slate-200/80">
+          <label class="flex items-center gap-2 text-sm font-semibold text-slate-800 cursor-pointer">
+            <input id="rx-insulin" type="checkbox" class="w-4 h-4 accent-teal-600 rounded">
+            <span>Đây là insulin (thuốc tiêm)</span>
+          </label>
+          <label class="flex items-start gap-2 text-sm font-semibold text-slate-800 cursor-pointer p-2.5 rounded-xl bg-teal-50/50 border border-teal-100">
+            <input id="rx-allow-makeup" type="checkbox" checked class="w-4 h-4 accent-teal-600 rounded mt-0.5">
+            <div>
+              <span class="text-teal-950 font-bold">Cho phép dùng bù nếu quên liều</span>
+              <p class="text-[11px] text-slate-500 font-normal mt-0.5 leading-normal">
+                Bỏ tích đối với Sulfonylurea (Gliclazide, Glimepiride...) hoặc Insulin trước ăn. Khi bỏ tích, nếu bệnh nhân quên quá 1 tiếng hệ thống sẽ yêu cầu bỏ qua liều và khóa không cho uống bù để tránh hạ đường huyết nguy hiểm.
+              </p>
+            </div>
+          </label>
+        </div>
         <p id="rx-error" class="text-red-600 text-sm font-medium hidden-view" role="alert"></p>
         <button id="rx-submit" type="submit" class="btn bg-teal-700 hover:bg-teal-800 text-white px-5 py-2.5 font-bold shadow-xs transition-all">Lưu đơn thuốc</button>
       </form>
@@ -377,7 +391,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/common.js?v=15"></script>
-  <script src="/admin.js?v=15"></script>
+  <script src="/common.js?v=16"></script>
+  <script src="/admin.js?v=16"></script>
 </body>
 </html>

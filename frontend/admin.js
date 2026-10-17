@@ -712,14 +712,22 @@ async function loadPatientDetail() {
       : r.frequency.map((s) => SLOTS[s]).join(', ');
     const displayInstruction = parsed.cleanInstruction;
 
+    const allowMakeUp = canPrescriptionMakeUp(r);
+
     ul.append(h('li', { class: `flex justify-between items-center gap-2 rounded-xl border p-3 ${r.is_active ? 'border-slate-200' : 'opacity-50 border-slate-200'}` },
       h('div', {},
-        h('p', { class: 'font-bold' }, r.drug_name, r.is_insulin ? ' 💉' : '', r.is_active ? '' : ' (đã ngừng)'),
-        h('p', { class: 'text-slate-600 font-medium' }, [r.dosage, timeDisplay].filter(Boolean).join(' · ')),
-        displayInstruction && h('p', { class: 'text-xs text-slate-400 mt-0.5' }, displayInstruction)),
+        h('p', { class: 'font-bold text-slate-800' }, r.drug_name, r.is_active ? '' : ' (đã ngừng)'),
+        h('p', { class: 'text-slate-600 font-medium text-xs mt-0.5' }, [r.dosage, timeDisplay].filter(Boolean).join(' · ')),
+        displayInstruction && h('p', { class: 'text-xs text-slate-500 mt-0.5' }, displayInstruction),
+        h('div', { class: 'flex items-center gap-1.5 mt-1.5 flex-wrap' },
+          r.is_insulin && h('span', { class: 'text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-full' }, 'Insulin'),
+          allowMakeUp
+            ? h('span', { class: 'text-[11px] font-semibold bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full' }, 'Cho phép dùng bù')
+            : h('span', { class: 'text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-full' }, 'Không dùng bù nếu trễ > 1h')
+        )),
       h('div', { class: 'flex items-center gap-1.5 shrink-0' },
         r.is_active && h('button', { class: 'btn px-2.5 py-1.5 text-xs border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100', onclick: () => stopPrescription(r.id) }, 'Ngừng thuốc'),
-        h('button', { class: 'btn px-2.5 py-1.5 text-xs border border-rose-200 text-rose-700 bg-rose-50 font-bold hover:bg-rose-100', onclick: () => deletePrescription(r) }, '🗑️ Xóa đơn'))));
+        h('button', { class: 'btn px-2.5 py-1.5 text-xs border border-rose-200 text-rose-700 bg-rose-50 font-bold hover:bg-rose-100', onclick: () => deletePrescription(r) }, 'Xóa đơn'))));
   }
 
   const su = $('pd-sugar');
@@ -758,7 +766,9 @@ async function onAddPrescription(e) {
   assignedSlots.sort((a, b) => SLOT_ORDER.indexOf(a) - SLOT_ORDER.indexOf(b));
 
   const rawInst = $('rx-inst').value.trim();
-  const encodedInstruction = `[TIMES:${selectedRxTimes.join(',')}] ${rawInst}`.trim();
+  const allowMakeUp = $('rx-allow-makeup') ? $('rx-allow-makeup').checked : true;
+  const makeupTag = allowMakeUp ? '' : '[NO_MAKEUP] ';
+  const encodedInstruction = `[TIMES:${selectedRxTimes.join(',')}] ${makeupTag}${rawInst}`.trim();
 
   const btn = $('rx-submit'); btn.disabled = true;
   const { error } = await sb.from('prescriptions').insert({
@@ -774,6 +784,7 @@ async function onAddPrescription(e) {
   if (error) { setError($('rx-error'), 'Không lưu được đơn thuốc: ' + (error.message || '')); return; }
   toast('Đã thêm đơn thuốc');
   $('presc-form').reset();
+  if ($('rx-allow-makeup')) $('rx-allow-makeup').checked = true;
   selectedRxTimes = ['07:00'];
   renderRxTimeTags();
   loadPatientDetail();

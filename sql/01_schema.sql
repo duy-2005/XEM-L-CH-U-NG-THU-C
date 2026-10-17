@@ -40,6 +40,7 @@ create table if not exists public.prescriptions (
   dosage      text not null default '' check (char_length(dosage) <= 120),
   instruction text not null default '' check (char_length(instruction) <= 500),
   is_insulin  boolean not null default false,
+  allow_makeup boolean not null default true,
   -- khung giờ uống/tiêm trong ngày
   frequency   text[] not null default '{sang}'
               check (frequency <@ array['sang','trua','chieu','toi','truoc_ngu']::text[]
@@ -48,6 +49,8 @@ create table if not exists public.prescriptions (
   created_by  uuid references public.profiles(id) on delete set null default auth.uid(),
   created_at  timestamptz not null default now()
 );
+
+alter table public.prescriptions add column if not exists allow_makeup boolean not null default true;
 
 create table if not exists public.daily_logs (
   id              uuid primary key default gen_random_uuid(),

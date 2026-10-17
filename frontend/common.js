@@ -11,17 +11,26 @@ const DEFAULT_SLOT_TIMES = {
   truoc_ngu: '21:30',
 };
 
+function canPrescriptionMakeUp(p) {
+  if (!p) return true;
+  if (p.allow_makeup === false) return false;
+  if (p.instruction && p.instruction.includes('[NO_MAKEUP]')) return false;
+  return true;
+}
+
 function parsePrescriptionTimes(p) {
   const res = { times: {}, cleanInstruction: p && p.instruction ? p.instruction : '' };
   if (!p || !p.instruction) return res;
-  const match = p.instruction.match(/\[TIMES:([^\]]+)\]/);
+  let text = p.instruction;
+  const match = text.match(/\[TIMES:([^\]]+)\]/);
   if (match) {
     const list = match[1].split(',').map((t) => t.trim()).filter(Boolean);
     (p.frequency || []).forEach((slot, idx) => {
       if (list[idx]) res.times[slot] = list[idx];
     });
-    res.cleanInstruction = p.instruction.replace(match[0], '').trim();
+    text = text.replace(match[0], '').trim();
   }
+  res.cleanInstruction = text.replace(/\[NO_MAKEUP\]\s*/g, '').trim();
   return res;
 }
 

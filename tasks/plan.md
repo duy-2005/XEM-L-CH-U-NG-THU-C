@@ -62,15 +62,28 @@ Dựa trên tiêu chuẩn **Anthropic Frontend Design** & **UI-UX Pro Max (Swiss
 ---
 
 ## 4. Giai đoạn 11: Tinh Chỉnh Theo Yêu Cầu Người Dùng Mới Nhất
-- **Nhiệm vụ 1: Thay thế Avatar & Icon PWA hệ thống:**
-  - Chuyển đổi ảnh đại diện 3D y tế y khoa 1024x1024 do người dùng cung cấp thành các định dạng chuẩn PWA: `icon-192.png`, `icon-512.png`, `apple-touch-icon.png`.
-  - Cập nhật ảnh hiển thị tại màn hình đăng nhập người bệnh (`index.html`) và trang quản trị bác sĩ (`admin.html`).
-- **Nhiệm vụ 2: Tối giản màn hình đăng nhập:**
-  - Bỏ gợi ý điền mẫu (placeholder) trong các ô nhập để giao diện gọn gàng, trực quan.
-- **Nhiệm vụ 3: Tinh chỉnh thiết kế thẻ cữ thuốc (Medication Card):**
-  - Khắc phục tình trạng "thừa số 07:00 và nút Bỏ lỡ" được phản ánh ở ảnh 2:
-    - Gộp/tinh gọn badge mốc thời gian và buổi (`07:00 · Sáng`).
-    - Khi thẻ đã rơi vào trạng thái "Bỏ lỡ", ẩn ngay nút bấm "Bỏ lỡ" ở dưới đáy (chỉ giữ lại nút duy nhất "Uống bù ngay"), loại bỏ nút trùng lặp trong khung cảnh báo vàng.
-- **Nhiệm vụ 4: Phỏng vấn & Thống nhất phương án với người dùng:**
-  - Đặt câu hỏi cụ thể để người dùng duyệt phương án trước khi thi công.
+- [x] **Nhiệm vụ 1: Thay thế Avatar & Icon PWA hệ thống** (Đã hoàn thành)
+- [x] **Nhiệm vụ 2: Tối giản màn hình đăng nhập** (Đã hoàn thành)
+- [x] **Nhiệm vụ 3: Tinh chỉnh thiết kế thẻ cữ thuốc** (Đã hoàn thành)
+
+---
+
+## 5. Giai đoạn 12: Thiết Lập An Toàn Dược Lâm Sàng – Quy Tắc Quên Liều (Clinical Missed Dose Protocol)
+- **Mục tiêu Dược học:** Ngăn chặn nguy cơ **hạ đường huyết kịch phát (Severe Hypoglycemia)** do uống bù / tiêm bù quá giờ đối với các thuốc ĐTĐ kích thích tiết insulin (Sulfonylurea, Meglitinide) hoặc Insulin trước bữa ăn.
+- **Nhiệm vụ 1: Cấu hình kê đơn tại trang Bác sĩ (`frontend/admin.html` & `frontend/admin.js`):**
+  - Thêm tùy chọn chỉ định xử trí khi quên liều:
+    - `[x] Cho phép uống bù nếu quên trong 1 tiếng` (mặc định cho thuốc thông thường)
+    - `[ ] Bỏ qua liều, KHÔNG ĐƯỢC uống bù nếu quá 1 tiếng` (khuyến cáo cho Sulfonylurea, Insulin ăn).
+  - Lưu trữ và mã hóa an toàn vào metadata đơn thuốc (`[NO_MAKEUP]` trong `instruction` và trường `allow_makeup`).
+  - Hiển thị nhãn cảnh báo an toàn trên danh sách đơn thuốc để bác sĩ dễ dàng theo dõi.
+- **Nhiệm vụ 2: Cảnh báo & Điều hướng tại app Bệnh nhân (`frontend/app.js`):**
+  - Kiểm tra điều kiện `canPrescriptionMakeUp(p)`:
+    - Nếu thuốc **KHÔNG CHO PHÉP UỐNG BÙ** và đã quá 1 tiếng:
+      - Ẩn hoàn toàn nút "Uống bù ngay".
+      - Hiển thị khung cảnh báo an toàn chuẩn dược sĩ: *"Bạn đã quên thuốc quá 1 tiếng. Với loại thuốc này, vui lòng bỏ qua liều, tuyệt đối không được uống lại để tránh nguy cơ hạ đường huyết nguy hiểm. Hãy chờ đến cữ kế tiếp!"*
+      - Thẻ chuyển sang trạng thái đã ghi nhận bỏ qua.
+    - Nếu thuốc **CHO PHÉP UỐNG BÙ**: Vẫn giữ nút "Uống bù ngay" như bình thường.
+- **Nhiệm vụ 3: Phỏng vấn Dược sĩ lâm sàng & Người dùng:**
+  - Khảo sát các chi tiết về câu chữ cảnh báo và hành vi mặc định khi kê đơn.
+
 

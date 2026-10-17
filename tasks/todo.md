@@ -75,4 +75,16 @@
 - [x] **Task 24: Kiểm thử hiển thị, xác thực cú pháp và kiểm tra PWA**
   - **Mô tả:** Đã kiểm tra cú pháp node -c thành công, bump cache Service Worker lên `dtd-shell-v15`.
 
+## Giai đoạn 12: Thiết Lập An Toàn Dược Lâm Sàng – Quy Tắc Quên Liều (Clinical Missed Dose Protocol)
+- [x] **Task 25: Phỏng vấn xác nhận 100% nguyên tắc lâm sàng và giao diện hiển thị**
+  - **Mô tả:** Đã phỏng vấn qua `ask_question`, xác nhận mô hình dược lâm sàng: Mặc định bật checkbox "Cho phép uống bù nếu quên liều" (Bác sĩ bỏ chọn với nhóm kích thích tiết Insulin/Insulin bữa ăn) và phía bệnh nhân hiển thị cảnh báo đỏ/cam chống hạ đường huyết kèm nút "Đã hiểu & Bỏ qua liều này".
+- [x] **Task 26: Thêm tùy chọn "Xử trí khi quên liều" trong form kê đơn Bác sĩ (`frontend/admin.html` & `frontend/admin.js`)**
+  - **Mô tả:** Đã thêm checkbox `#rx-allow-makeup` trong form kê đơn Bác sĩ kèm chú thích dược lý. Tự động mã hóa thẻ an toàn `[NO_MAKEUP]` vào trường `instruction` và hiển thị huy hiệu lâm sàng tương ứng ở danh sách đơn thuốc.
+- [x] **Task 27: Triển khai cảnh báo an toàn & ẩn nút uống bù đối với thuốc cấm uống bù (`frontend/app.js` & `frontend/common.js`)**
+  - **Mô tả:** Đã viết hàm `canPrescriptionMakeUp()`. Phía bệnh nhân: nếu thuốc cấm uống bù và trễ > 1 tiếng hoặc ở trạng thái bỏ lỡ, hệ thống khóa hoàn toàn nút uống bù, hiển thị cảnh báo lâm sàng nổi bật (tránh nguy cơ hạ đường huyết nguy hiểm) và cung cấp nút bấm "Đã hiểu & Bỏ qua liều này" để đồng bộ dữ liệu về cho Bác sĩ.
+- [x] **Task 28: Cập nhật cơ sở dữ liệu `sql/01_schema.sql`, kiểm thử luồng lâm sàng và bump cache**
+  - **Mô tả:** Bổ sung cột `allow_makeup` trong `sql/01_schema.sql`, bump Service Worker lên `dtd-shell-v16`, kiểm tra cú pháp toàn bộ JS đạt 100% không lỗi.
+
+
+
 

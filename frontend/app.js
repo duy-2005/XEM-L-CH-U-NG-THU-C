@@ -1051,10 +1051,11 @@ function medCard(p, slot, status, isCurrent, isOverdue) {
   const verbDone = p.is_insulin ? 'Đã tiêm' : 'Đã uống';
   const isTaken = status === 'taken';
   const isMissed = status === 'missed';
+  const allowMakeUp = canPrescriptionMakeUp(p);
 
   let cardClass = 'card p-5 transition-all relative overflow-hidden';
   if (isTaken) cardClass += ' card-taken';
-  else if (isMissed) cardClass += ' card-missed';
+  else if (isMissed || (!status && isOverdue && !allowMakeUp)) cardClass += ' card-missed';
   else if (isCurrent) cardClass += ' card-current-slot';
 
   const statusBadge = () => {
@@ -1065,8 +1066,8 @@ function medCard(p, slot, status, isCurrent, isOverdue) {
         ),
         h('span', {}, `${verbDone} xong`));
     }
-    if (isMissed) {
-      const txt = isOverdue ? 'Quá giờ (Bỏ lỡ)' : 'Bỏ lỡ';
+    if (isMissed || (!status && isOverdue && !allowMakeUp)) {
+      const txt = !allowMakeUp ? 'Bỏ qua liều' : isOverdue ? 'Quá giờ (Bỏ lỡ)' : 'Bỏ lỡ';
       return h('span', { class: 'inline-flex items-center gap-1 text-xs font-bold bg-rose-50 text-rose-800 rounded-full px-2.5 py-0.5 border border-rose-200' },
         h('svg', { class: 'w-3 h-3 text-rose-600', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
           h('line', { x1: '18', y1: '6', x2: '6', y2: '18' }),
@@ -1111,13 +1112,72 @@ function medCard(p, slot, status, isCurrent, isOverdue) {
     onclick: (ev) => openMissedModal(p, slot, ev.currentTarget),
   }, 'Bỏ lỡ');
 
-  const recoveryNotice = isMissed ? h('div', { class: 'mt-3 p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 font-medium flex items-center gap-2' },
-    h('svg', { class: 'w-4 h-4 text-amber-600 shrink-0', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
-      h('circle', { cx: '12', cy: '12', r: '10' }),
-      h('line', { x1: '12', y1: '8', x2: '12', y2: '12' }),
-      h('line', { x1: '12', y1: '16', x2: '12.01', y2: '16' })
-    ),
-    h('span', {}, 'Đã quá giờ dùng thuốc. Bạn có thể bấm "Uống bù ngay" bên dưới để hoàn thành cữ thuốc này.')) : null;
+  const recoveryNotice = (() => {
+    if (!allowMakeUp) {
+      if (isMissed || (!status && isOverdue)) {
+        return h('div', { class: 'mt-3 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1' },
+          h('div', { class: 'font-extrabold flex items-center gap-1.5 text-rose-800' },
+            h('svg', { class: 'w-4 h-4 text-rose-600 shrink-0', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+              h('path', { d: 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z' }),
+              h('line', { x1: '12', y1: '9', x2: '12', y2: '13' }),
+              h('line', { x1: '12', y1: '17', x2: '12.01', y2: '17' })
+            ),
+            h('span', {}, 'Cảnh báo an toàn thuốc: Không được uống bù!')
+          ),
+          h('p', { class: 'text-rose-700 leading-relaxed font-medium' },
+            'Bạn đã quên thuốc quá 1 tiếng. Đối với loại thuốc này, vui lòng bỏ qua liều đã quên, tuyệt đối không được uống/tiêm bù để tránh nguy cơ hạ đường huyết nguy hiểm. Hãy chờ đến cữ kế tiếp.'
+          )
+        );
+      }
+      return null;
+    }
+    // Thuốc cho phép uống bù:
+    if (isMissed) {
+      return h('div', { class: 'mt-3 p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 font-medium flex items-center gap-2' },
+        h('svg', { class: 'w-4 h-4 text-amber-600 shrink-0', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+          h('circle', { cx: '12', cy: '12', r: '10' }),
+          h('line', { x1: '12', y1: '8', x2: '12', y2: '12' }),
+          h('line', { x1: '12', y1: '16', x2: '12.01', y2: '16' })
+        ),
+        h('span', {}, 'Đã quá giờ dùng thuốc. Bạn có thể bấm "Uống bù ngay" bên dưới để hoàn thành cữ thuốc này.'));
+    }
+    return null;
+  })();
+
+  const renderActionButtons = () => {
+    if (isTaken) {
+      return h('div', { class: 'flex items-center gap-2.5 mt-4' }, btnTake);
+    }
+
+    if (!allowMakeUp) {
+      if (isMissed) {
+        return h('div', { class: 'mt-4 w-full py-3 px-4 text-xs font-bold text-center bg-slate-100 text-slate-500 rounded-xl border border-slate-200 flex items-center justify-center gap-1.5' },
+          h('svg', { class: 'w-3.5 h-3.5 text-slate-400', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+            h('polyline', { points: '20 6 9 17 4 12' })
+          ),
+          h('span', {}, 'Đã ghi nhận bỏ qua liều này (Không dùng bù)'));
+      }
+      if (isOverdue) {
+        return h('div', { class: 'mt-4' },
+          h('button', {
+            type: 'button',
+            class: 'btn w-full py-3.5 px-4 text-sm font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl transition-all shadow-xs flex items-center justify-center gap-2',
+            onclick: (ev) => markDose(p, slot, 'missed', ev.currentTarget),
+          },
+          h('svg', { class: 'w-4 h-4 text-rose-600', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+            h('path', { d: 'M18 6 6 18' }),
+            h('path', { d: 'm6 6 12 12' })
+          ),
+          h('span', {}, 'Đã hiểu & Bỏ qua liều này')));
+      }
+      return h('div', { class: 'flex items-center gap-2.5 mt-4' }, btnTake, btnMiss);
+    }
+
+    // Thuốc cho phép uống bù thông thường:
+    return h('div', { class: 'flex items-center gap-2.5 mt-4' },
+      btnTake,
+      !status && btnMiss);
+  };
 
   const exactTime = getPrescriptionTime(p, slot);
   const parsed = parsePrescriptionTimes(p);
@@ -1138,13 +1198,12 @@ function medCard(p, slot, status, isCurrent, isOverdue) {
         h('p', { class: 'text-slate-600 font-bold text-sm mt-0.5' }, `Liều dùng: ${p.dosage}`)),
       h('div', { class: 'flex flex-col items-end gap-1.5 shrink-0' },
         statusBadge(),
-        p.is_insulin && h('span', { class: 'text-[11px] font-bold bg-amber-50 text-amber-900 rounded-full px-2.5 py-0.5 border border-amber-200' }, 'Thuốc tiêm (Insulin)'))),
+        p.is_insulin && h('span', { class: 'text-[11px] font-bold bg-amber-50 text-amber-900 rounded-full px-2.5 py-0.5 border border-amber-200' }, 'Thuốc tiêm (Insulin)'),
+        !allowMakeUp && h('span', { class: 'text-[11px] font-bold bg-rose-50 text-rose-800 rounded-full px-2.5 py-0.5 border border-rose-200' }, 'Không dùng bù nếu trễ > 1h'))),
     displayInstruction && h('p', { class: 'text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100 mt-2 font-medium' },
       h('strong', { class: 'text-slate-700' }, 'Hướng dẫn: '), displayInstruction),
     recoveryNotice,
-    h('div', { class: 'flex items-center gap-2.5 mt-4' },
-      btnTake,
-      !status && btnMiss));
+    renderActionButtons());
 }
 
 let _pendingMissed = null;
