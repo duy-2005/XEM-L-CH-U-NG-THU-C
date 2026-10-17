@@ -748,11 +748,19 @@ async function onTestPushPatient() {
 
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  const targetPanel = $('tab-' + tab);
   document.querySelectorAll('.tab-panel').forEach((p) => {
-    const isCurrent = p.id === 'tab-' + tab;
-    show(p, isCurrent);
-    if (isCurrent) p.classList.add('fade-in');
+    if (p !== targetPanel) show(p, false);
   });
+  if (targetPanel) {
+    show(targetPanel, true);
+    if (window.gsap) {
+      gsap.fromTo(targetPanel, 
+        { opacity: 0, y: 8 }, 
+        { opacity: 1, y: 0, duration: 0.25, ease: 'power2.out' }
+      );
+    }
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (tab === 'today') loadToday();
   if (tab === 'sugar') loadSugar();
@@ -932,8 +940,18 @@ async function loadToday() {
   list.replaceChildren();
 
   if (!prescData) {
-    list.append(h('div', { class: 'card p-6 text-center text-slate-500 space-y-2' },
-      h('div', { class: 'text-3xl' }, '⚡'),
+    list.append(h('div', { class: 'card p-6 text-center text-slate-500 space-y-3' },
+      h('div', { class: 'w-12 h-12 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400' },
+        h('svg', { class: 'w-6 h-6', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+          h('line', { x1: '1', y1: '1', x2: '23', y2: '23' }),
+          h('path', { d: 'M16.72 11.06A10.94 10.94 0 0 1 19 12.55' }),
+          h('path', { d: 'M5 12.55a10.94 10.94 0 0 1 5.17-2.39' }),
+          h('path', { d: 'M10.71 5.05A16 16 0 0 1 22.58 9' }),
+          h('path', { d: 'M1.42 9a15.91 15.91 0 0 1 4.7-2.88' }),
+          h('path', { d: 'M8.53 16.11a6 6 0 0 1 6.95 0' }),
+          h('line', { x1: '12', y1: '20', x2: '12.01', y2: '20' })
+        )
+      ),
       h('p', { class: 'font-bold text-slate-700' }, 'Bạn đang ngoại tuyến'),
       h('p', { class: 'text-xs text-slate-400' }, 'Chưa có bản lưu đơn thuốc trên máy này. Hãy kết nối WiFi/4G một lần để đồng bộ.')));
     return;
@@ -959,8 +977,16 @@ async function loadToday() {
   });
 
   if (!items.length) {
-    list.append(h('div', { class: 'card p-8 text-center text-slate-500 space-y-2' },
-      h('div', { class: 'text-4xl' }, '🩺'),
+    list.append(h('div', { class: 'card p-8 text-center text-slate-500 space-y-3' },
+      h('div', { class: 'w-12 h-12 mx-auto rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-700' },
+        h('svg', { class: 'w-6 h-6', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+          h('path', { d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' }),
+          h('polyline', { points: '14 2 14 8 20 8' }),
+          h('line', { x1: '16', y1: '13', x2: '8', y2: '13' }),
+          h('line', { x1: '16', y1: '17', x2: '8', y2: '17' }),
+          h('polyline', { points: '10 9 9 9 8 9' })
+        )
+      ),
       h('p', { class: 'font-bold text-slate-700' }, 'Bác sĩ chưa kê đơn thuốc cho bạn'),
       h('p', { class: 'text-xs text-slate-400' }, 'Khi bác sĩ kê đơn trên hệ thống, lịch thuốc sẽ hiển thị ở đây.')));
     $('progress-label').textContent = '0/0';
@@ -980,15 +1006,39 @@ async function loadToday() {
     list.append(medCard(p, slot, status, isCurrent, isOverdue));
   }
 
+  // Hoạt ảnh GSAP xuất hiện thẻ thuốc tuần tự (Stagger Entrance)
+  if (window.gsap && list.children.length > 0) {
+    gsap.fromTo(list.children, 
+      { opacity: 0, y: 12 }, 
+      { opacity: 1, y: 0, duration: 0.32, stagger: 0.05, ease: 'power2.out' }
+    );
+  }
+
   const total = items.length;
   $('progress-label').textContent = `${taken}/${total} đã dùng`;
   const pct = Math.round((taken / total) * 100);
-  $('progress-bar').style.width = `${pct}%`;
+
+  // Hoạt ảnh GSAP thanh tiến độ chạy mượt mà
+  if (window.gsap) {
+    gsap.to($('progress-bar'), { width: `${pct}%`, duration: 0.55, ease: 'power2.out' });
+  } else {
+    $('progress-bar').style.width = `${pct}%`;
+  }
+
   if (pct === 100) $('progress-bar').classList.add('progress-glow');
   else $('progress-bar').classList.remove('progress-glow');
 
   const allDone = taken === total && total > 0;
-  show($('celebration-box'), allDone);
+  const celebBox = $('celebration-box');
+  const wasHidden = celebBox.classList.contains('hidden-view');
+  show(celebBox, allDone);
+
+  if (allDone && wasHidden && window.gsap) {
+    gsap.fromTo(celebBox, 
+      { opacity: 0, scale: 0.95, y: -8 }, 
+      { opacity: 1, scale: 1, y: 0, duration: 0.45, ease: 'power2.out' }
+    );
+  }
 
   // Kích hoạt pháo hoa chúc mừng nếu vừa hoàn thành cữ cuối cùng
   if (allDone && _prevTakenCount !== -1 && _prevTakenCount < total) {
@@ -999,46 +1049,61 @@ async function loadToday() {
 
 function medCard(p, slot, status, isCurrent, isOverdue) {
   const verbDone = p.is_insulin ? 'Đã tiêm' : 'Đã uống';
-  let cardClass = 'card p-5 fade-in transition-all relative overflow-hidden';
-  if (status === 'taken') cardClass += ' card-taken';
-  else if (status === 'missed') cardClass += ' card-missed';
+  const isTaken = status === 'taken';
+  const isMissed = status === 'missed';
+
+  let cardClass = 'card p-5 transition-all relative overflow-hidden';
+  if (isTaken) cardClass += ' card-taken';
+  else if (isMissed) cardClass += ' card-missed';
   else if (isCurrent) cardClass += ' card-current-slot';
 
-  const isMissed = status === 'missed';
   const statusBadge = () => {
-    if (status === 'taken') {
-      return h('span', { class: 'inline-flex items-center gap-1 text-xs font-black bg-emerald-100 text-emerald-800 rounded-full px-3 py-1 shadow-sm' },
-        h('span', {}, '✓'), h('span', {}, verbDone));
+    if (isTaken) {
+      return h('span', { class: 'inline-flex items-center gap-1.5 text-xs font-semibold bg-slate-100 text-slate-600 rounded-full px-2.5 py-0.5 border border-slate-200' },
+        h('svg', { class: 'w-3 h-3 text-slate-500', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+          h('polyline', { points: '20 6 9 17 4 12' })
+        ),
+        h('span', {}, `${verbDone} xong`));
     }
     if (isMissed) {
       const txt = isOverdue ? 'Quá giờ (Bỏ lỡ)' : 'Bỏ lỡ';
-      return h('span', { class: 'inline-flex items-center gap-1 text-xs font-black bg-rose-100 text-rose-800 rounded-full px-3 py-1 shadow-sm' },
-        h('span', {}, '✕'), h('span', {}, txt));
+      return h('span', { class: 'inline-flex items-center gap-1 text-xs font-bold bg-rose-50 text-rose-800 rounded-full px-2.5 py-0.5 border border-rose-200' },
+        h('svg', { class: 'w-3 h-3 text-rose-600', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+          h('line', { x1: '18', y1: '6', x2: '6', y2: '18' }),
+          h('line', { x1: '6', y1: '6', x2: '18', y2: '18' })
+        ),
+        h('span', {}, txt));
     }
     if (isCurrent) {
-      return h('span', { class: 'inline-flex items-center gap-1 text-xs font-black bg-teal-600 text-white rounded-full px-3 py-1 shadow-md shadow-teal-600/30 animate-pulse' },
-        h('span', {}, '⚡'), h('span', {}, 'Đến giờ uống'));
+      return h('span', { class: 'inline-flex items-center gap-1.5 text-xs font-bold bg-teal-700 text-white rounded-full px-2.5 py-0.5 shadow-sm' },
+        h('span', { class: 'w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping' }),
+        h('span', {}, 'Đến giờ dùng'));
     }
-    return h('span', { class: 'text-xs font-bold text-slate-400 bg-slate-100 rounded-full px-2.5 py-0.5' }, 'Chưa đến');
+    return h('span', { class: 'text-xs font-semibold text-slate-400 bg-slate-100 rounded-full px-2.5 py-0.5' }, 'Cữ sắp tới');
   };
 
-  const btnTakeText = status === 'taken' ? verbDone : isMissed ? `✓ Uống bù ngay` : verbDone;
+  const btnTakeText = isTaken ? `${verbDone} xong` : isMissed ? `Uống bù ngay` : verbDone;
 
   const btnTake = h('button', {
     type: 'button',
-    class: `btn py-3.5 px-4 text-base font-extrabold flex-1 gap-2 shadow-sm transition-all ${
-      status === 'taken' 
-        ? 'bg-emerald-600 text-white shadow-emerald-600/25 ring-2 ring-emerald-400' 
+    disabled: isTaken,
+    class: `btn py-3 px-4 text-base font-extrabold flex-1 gap-2 transition-all ${
+      isTaken 
+        ? 'bg-slate-200 text-slate-500 border border-slate-300 cursor-not-allowed shadow-none opacity-80' 
         : isMissed
         ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 ring-2 ring-emerald-400'
-        : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
+        : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
     }`,
-    onclick: (ev) => markDose(p, slot, 'taken', ev.currentTarget),
-  }, h('span', { class: 'text-lg' }, '✓'), h('span', {}, btnTakeText));
+    onclick: isTaken ? null : (ev) => markDose(p, slot, 'taken', ev.currentTarget),
+  }, 
+  h('svg', { class: `w-4 h-4 ${isTaken ? 'text-slate-400' : 'text-white'}`, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+    h('polyline', { points: '20 6 9 17 4 12' })
+  ),
+  h('span', {}, btnTakeText));
 
   const btnMiss = h('button', {
     type: 'button',
-    class: `btn py-3.5 px-3 text-sm font-bold border transition-all ${
+    class: `btn py-3 px-3 text-sm font-bold border transition-all ${
       status === 'missed' && !isOverdue
         ? 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-400'
         : 'bg-white hover:bg-rose-50/50 text-slate-600 border-slate-200'
@@ -1046,11 +1111,11 @@ function medCard(p, slot, status, isCurrent, isOverdue) {
     onclick: (ev) => openMissedModal(p, slot, ev.currentTarget),
   }, 'Bỏ lỡ');
 
-  const recoveryNotice = isMissed ? h('div', { class: 'mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 font-semibold flex items-center justify-between gap-2' },
-    h('span', {}, '⚠️ Đã quá giờ hơn 1 tiếng. Nếu bạn vừa uống thuốc, hãy bấm nút uống bù để xóa cảnh báo bỏ lỡ.'),
+  const recoveryNotice = isMissed ? h('div', { class: 'mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 font-semibold flex items-center justify-between gap-2' },
+    h('span', {}, 'Đã quá giờ hơn 1 tiếng. Nếu bạn vừa dùng thuốc, hãy bấm nút uống bù để hoàn thành cữ.'),
     h('button', {
       type: 'button',
-      class: 'shrink-0 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow',
+      class: 'shrink-0 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs',
       onclick: (ev) => markDose(p, slot, 'taken', ev.currentTarget),
     }, 'Uống bù')
   ) : null;
@@ -1063,13 +1128,19 @@ function medCard(p, slot, status, isCurrent, isOverdue) {
     h('div', { class: 'flex items-start justify-between gap-3 mb-2' },
       h('div', {},
         h('div', { class: 'flex items-center gap-1.5 flex-wrap mb-1.5' },
-          h('span', { class: 'text-xs font-black tracking-wide text-white bg-teal-700 px-2.5 py-0.5 rounded-lg shadow-xs' }, `⏰ ${exactTime}`),
+          h('span', { class: 'inline-flex items-center gap-1 text-xs font-black tracking-wide text-white bg-teal-800 px-2.5 py-0.5 rounded-lg shadow-xs' },
+            h('svg', { class: 'w-3 h-3 text-teal-200', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+              h('circle', { cx: '12', cy: '12', r: '10' }),
+              h('polyline', { points: '12 6 12 12 16 14' })
+            ),
+            h('span', {}, exactTime)
+          ),
           h('span', { class: 'text-xs font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-lg border border-teal-200' }, SLOTS[slot])),
         h('h3', { class: 'text-xl font-black text-slate-900 mt-1' }, p.drug_name),
         h('p', { class: 'text-slate-600 font-bold text-sm mt-0.5' }, `Liều dùng: ${p.dosage}`)),
       h('div', { class: 'flex flex-col items-end gap-1.5 shrink-0' },
         statusBadge(),
-        p.is_insulin && h('span', { class: 'text-[11px] font-bold bg-amber-100 text-amber-900 rounded-full px-2.5 py-0.5 border border-amber-200' }, '💉 Insulin'))),
+        p.is_insulin && h('span', { class: 'text-[11px] font-bold bg-amber-50 text-amber-900 rounded-full px-2.5 py-0.5 border border-amber-200' }, 'Thuốc tiêm (Insulin)'))),
     displayInstruction && h('p', { class: 'text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100 mt-2 font-medium' },
       h('strong', { class: 'text-slate-700' }, 'Hướng dẫn: '), displayInstruction),
     recoveryNotice,
@@ -1083,7 +1154,7 @@ function openMissedModal(p, slot, btn) {
   _pendingMissed = { p, slot, btn };
   const dlg = $('dlg-missed-reason');
   if ($('missed-modal-drug')) {
-    $('missed-modal-drug').textContent = `${p.drug_name} (⏰ ${getPrescriptionTime(p, slot)} · ${SLOTS[slot]})`;
+    $('missed-modal-drug').textContent = `${p.drug_name} (${getPrescriptionTime(p, slot)} · ${SLOTS[slot]})`;
   }
   if ($('missed-reason-text')) {
     $('missed-reason-text').value = '';
@@ -1099,6 +1170,9 @@ function openMissedModal(p, slot, btn) {
 }
 
 async function markDose(p, slot, status, btn, notes = null) {
+  if (window.gsap && btn) {
+    gsap.fromTo(btn, { scale: 0.95 }, { scale: 1, duration: 0.18, ease: 'power1.out' });
+  }
   btn.disabled = true;
   const today = vnToday();
   const payload = {

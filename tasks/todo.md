@@ -20,3 +20,30 @@
 - [x] **Task 5: Kiểm tra cú pháp mã nguồn và kiểm thử hoạt động**
   - **Mô tả:** Chạy `node -c` xác thực file JS.
 - [x] **Task 6: Giải thích chi tiết cơ chế ghi nhớ thiết bị cho người dùng**
+
+## Giai đoạn 4: Trải Nghiệm Thẻ Thuốc Đã Uống
+- [x] **Task 7: Làm tối màu và vô hiệu hóa nút bấm đối với cữ thuốc đã uống**
+  - **Mô tả:** Thẻ thuốc đã uống chuyển sang màu xám trầm, giảm độ sáng (opacity 0.72), nút chuyển xám và disabled, ngăn người dùng bấm nhầm.
+
+## Giai đoạn 5: Tích Hợp GSAP từ `gsap-public`
+- [x] **Task 8: Sao chép `gsap.min.js` vào `frontend/` và cấu hình PWA offline**
+  - **Mô tả:** Copy từ `/Users/acc/Downloads/gsap-public/minified/gsap.min.js` vào `frontend/gsap.min.js`, thêm vào cache của Service Worker và nhúng vào `index.html`.
+  - **Tiêu chí nghiệm thu:** `window.gsap` khả dụng ngay cả khi mất mạng.
+
+## Giai đoạn 6: Thay Thế Emoji Kiểu AI Bằng Icon Vector SVG Y Tế
+- [x] **Task 9: Thay thế emoji thanh điều hướng đáy và các tiêu đề chính**
+  - **Mô tả:** Thay thế 💊, 🩸, ⚠️, 👤, 🔔, 🧪, 💡 bằng icon SVG vector chuẩn Apple Health / Heroicons thanh lịch.
+  - **Tiêu chí nghiệm thu:** Giao diện chuyên nghiệp, không còn các emoji hoạt hình gây cảm giác AI.
+- [x] **Task 10: Thay thế emoji trong thẻ thuốc và hộp thoại**
+  - **Mô tả:** Bỏ ⏰, 💉, 🎉; thay bằng badge icon đồng hồ SVG, nhãn y khoa tinh giản, và checkmark chuẩn.
+
+## Giai đoạn 7: Thiết Kế Hiệu Ứng GSAP Tinh Tế & Sang Trọng
+- [x] **Task 11: Hoạt ảnh chuyển Tab mượt mà (Cross-fade & Slide)**
+  - **Mô tả:** Dùng GSAP làm hiệu ứng chuyển giữa Hôm nay, Đường huyết, Tác dụng phụ, Tài khoản một cách êm ái.
+- [x] **Task 12: Hoạt ảnh xuất hiện thẻ thuốc tuần tự (Stagger Entrance)**
+  - **Mô tả:** Khi mở app hoặc chọn ngày, các thẻ thuốc trượt nhẹ từ dưới lên cách nhau 0.05s.
+- [x] **Task 13: Hoạt ảnh xác nhận uống thuốc và thanh tiến độ**
+  - **Mô tả:** Khi bấm uống thuốc, thẻ chuyển màu xám êm dịu và thanh % lướt mượt mà với GSAP tween.
+
+## Giai đoạn 8: Kiểm Thử & Nghiệm Thu
+- [x] **Task 14: Kiểm tra cú pháp và trải nghiệm người dùng trên trình duyệt**

@@ -1,42 +1,41 @@
-# Kế Hoạch Triển Khai: Ràng Buộc Mật Khẩu Chữ & Số, Gom Cụm Nút Test & Giải Thích Cơ Chế Ghi Nhớ Thiết Bị
+# Kế Hoạch Nâng Cấp: Tích Hợp GSAP Hoạt Ảnh Cao Cấp & Loại Bỏ Emoji Kiểu AI
 
-## 1. Tổng quan & Mục tiêu
-
-Thực hiện 3 nội dung theo yêu cầu của người dùng:
-
-1. **Ràng buộc Mật khẩu Mới bao gồm cả CHỮ và SỐ:**
-   - Cập nhật hàm `validateNewPassword` để bắt buộc mật khẩu phải có ít nhất 1 chữ cái (`[a-zA-Z]`) và ít nhất 1 chữ số (`[0-9]`), độ dài tối thiểu 6 ký tự.
-   - Thêm dòng chú thích/hướng dẫn rõ ràng ngay dưới các ô nhập mật khẩu: *"Yêu cầu: Từ 6 ký tự trở lên, bao gồm cả chữ cái và chữ số (ví dụ: Matkhau123)"* ở cả 2 form (Lần đầu đăng nhập bắt buộc đổi và Đổi mật khẩu trong Tab Tài khoản).
-2. **Tách cụm nút Thử nghiệm (Test) ra khỏi lịch nhắc thuốc:**
-   - Dọn sạch giao diện thẻ cữ thuốc `#patient-push-box` ở tab **"Hôm nay"**: Chỉ giữ lại nút bật/tắt chuông chính để bệnh nhân không bị rối mắt.
-   - Chuyển toàn bộ các nút thử nghiệm (*"📧 Thử gửi Email"* và *"🧪 Thử chuông"*) sang một **Hộp thoại/Card kiểm tra chức năng riêng biệt** trong Tab **"Tài khoản"** (*"🧪 Khu vực thử nghiệm & Kiểm tra thông báo"*).
-3. **Giải thích cặn kẽ cơ chế Kỹ thuật: "Hệ thống nhớ thiết bị đăng nhập như thế nào?":**
-   - Phân tích cơ chế Session JWT trong `localStorage` của trình duyệt.
-   - Phân tích cơ chế Định danh Thiết bị đẩy (Device Push Endpoint) qua bảng `push_subscriptions`.
-
----
-
-## 2. Kế Hoạch Nhiệm Vụ (Task List)
-
-### Giai đoạn 1: Ràng Buộc Mật Khẩu Chữ & Số
-- [ ] **Task 1: Cập nhật `validateNewPassword()` trong `frontend/common.js`**
-  - Kiểm tra regex có chữ cái và chữ số.
-- [ ] **Task 2: Thêm dòng hướng dẫn yêu cầu mật khẩu trên giao diện `frontend/index.html`**
-  - Hiển thị dòng ghi chú ở `#force-pw-form` và `#pw-form`.
-
-### Giai đoạn 2: Tách Cụm Nút Thử Nghiệm Sang Ô Riêng Biệt
-- [ ] **Task 3: Dọn dẹp thẻ `#patient-push-box` tại Tab Hôm nay (`frontend/index.html`)**
-  - Xóa 2 nút test khỏi thanh cữ thuốc, chỉ giữ nút chính "Bật chuông".
-- [ ] **Task 4: Tạo Card "Khu vực Thử nghiệm & Kiểm tra" trong Tab Tài khoản (`frontend/index.html` & `frontend/app.js`)**
-  - Gom các nút thử email và thử chuông vào ô riêng biệt, có giải thích rõ ràng đây là khu vực dành cho người dùng/bác sĩ test thử.
-
-### Giai đoạn 3: Phân Tích & Giải Thích Cơ Chế Ghi Nhớ Thiết Bị
-- [ ] **Task 5: Trình bày chi tiết cơ chế nhận diện và lưu vết thiết bị đăng nhập**
+## 1. Phân Tích Yêu Cầu & Bối Cảnh
+Người dùng yêu cầu 2 trọng tâm:
+1. **Loại bỏ hoàn toàn các biểu tượng cảm xúc (Emoji/Icons AI-style):**
+   - Các emoji như 💊, 🩸, 🧪, 💡, 🔔, 🎉, 💉 tạo cảm giác như sản phẩm do AI sinh ngẫu nhiên, thiếu tính chuyên nghiệp y khoa.
+   - Thay thế bằng **biểu tượng vector SVG y tế tối giản, sắc nét (chuẩn Apple Health / Mayo Clinic)** hoặc **phong cách Typographic tối giản, sang trọng**.
+2. **Tích hợp bộ thư viện GSAP (từ `gsap-public`):**
+   - Sử dụng file lõi `gsap.min.js` để tạo trải nghiệm ứng dụng mượt mà 60fps.
+   - Áp dụng vào các tương tác cốt lõi:
+     - Hiệu ứng chuyển Tab mượt mà (Cross-fade & Slide).
+     - Hiệu ứng tải danh sách thuốc tuần tự (Stagger Entrance).
+     - Hiệu ứng hoàn thành cữ thuốc (chuyển sang trạng thái trầm màu êm ái).
+     - Hiệu ứng thanh tiến độ (Smooth progress tween).
+     - Hiệu ứng mở/đóng Modal/Popup nhẹ nhàng.
 
 ---
 
-## 3. Rủi ro & Giải pháp phòng ngừa
-| Rủi ro | Giải pháp |
-|---|---|
-| Bệnh nhân đặt mật khẩu quá phức tạp rồi quên | Đưa ví dụ gợi ý dễ nhớ (chữ + số quen thuộc, vd: `thuoc123`), có hỗ trợ bác sĩ đặt lại mật khẩu từ Admin |
-| Chuyển nút test khiến người dùng không tìm thấy | Đặt trong Tab Tài khoản với tiêu đề nổi bật có icon `🧪` rõ nét |
+## 2. Kế Hoạch Thực Hiện Chi Tiết
+
+### Giai đoạn 1: Chuẩn bị Thư viện GSAP Offline & Caching PWA
+- [ ] Sao chép `gsap.min.js` từ `/Users/acc/Downloads/gsap-public/minified/gsap.min.js` vào thư mục `frontend/`.
+- [ ] Khai báo `gsap.min.js` vào `frontend/service-worker.js` để ứng dụng hoạt động 100% offline.
+- [ ] Nhúng `<script src="/gsap.min.js?v=12"></script>` vào [frontend/index.html](file:///Users/acc/Bản%20gửi%20thầy%20Hải%20/frontend/index.html).
+
+### Giai đoạn 2: Thanh lọc Giao diện - Thay Emoji bằng SVG Y Tế Tinh Tế
+- [ ] Thay các emoji tại thanh điều hướng đáy (Bottom Nav): 💊, 🩸, ⚠️, 👤 thành các icon SVG vector thanh mảnh (Heroicons/Lucide).
+- [ ] Bỏ các emoji trang trí ở tiêu đề: 🔔 Nhắc thuốc, 🧪 Khu vực thử nghiệm, 💡 Yêu cầu mật khẩu, 🎉 Hoàn thành.
+- [ ] Tại thẻ thuốc: Bỏ emoji ⏰, 💉; thay bằng tag chữ y tế chuyên nghiệp: `Insulin`, thời gian dạng badge thanh lịch.
+- [ ] Nút hành động: Dùng dấu check SVG hoặc nhãn text rõ ràng, không dùng emoji màu mè.
+
+### Giai đoạn 3: Viết Hoạt Ảnh GSAP Tinh Tế trong `frontend/app.js`
+- [ ] `animateTabTransition(oldTab, newTab)`: Chuyển tab trượt nhẹ và mờ ảo tự nhiên.
+- [ ] `animateMedCards()`: Danh sách thuốc trượt lên lần lượt (stagger 0.08s) khi tải trang.
+- [ ] `animateMarkDoseTaken(cardEl, btnEl)`: Hoạt ảnh xác nhận uống thuốc êm ái, chuyển nền xám nhẹ nhàng.
+- [ ] `animateProgressBar(fromPct, toPct)`: GSAP tween cho thanh tiến độ tuân thủ.
+- [ ] `animateModal(modalEl, isOpen)`: Hoạt ảnh phóng to/thu nhỏ nhẹ nhàng cho các hộp thoại.
+
+### Giai đoạn 4: Kiểm thử & Nghiệm thu
+- [ ] Kiểm tra cú pháp `node -c`.
+- [ ] Kiểm tra độ mượt trên thiết bị di động, đảm bảo không bị giật lag.

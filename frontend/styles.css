@@ -81,10 +81,18 @@ body {
   }
 }
 
-/* Thẻ đã uống xong */
+/* Thẻ đã uống xong - Làm tối màu và chìm xuống để người dùng nhận diện đã hoàn thành, không bấm nhầm */
 .card-taken {
-  background: linear-gradient(135deg, rgba(240, 253, 244, 0.95) 0%, rgba(236, 254, 255, 0.85) 100%);
-  border-color: #86efac !important;
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  opacity: 0.72;
+  box-shadow: none !important;
+  filter: grayscale(20%);
+  transition: all 0.25s ease;
+}
+
+.card-taken:hover {
+  opacity: 0.88;
 }
 
 /* Thẻ bỏ lỡ */
@@ -168,6 +176,15 @@ body {
 .tab-btn[aria-selected="true"] .tab-icon-wrap {
   background: rgba(13, 148, 136, 0.12);
   transform: translateY(-2px);
+}
+
+.tab-btn svg {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tab-btn[aria-selected="true"] svg {
+  transform: scale(1.08);
+  stroke-width: 2.2;
 }
 
 .tab-btn[aria-selected="true"] .tab-dot {
