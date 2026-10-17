@@ -69,21 +69,17 @@ Dựa trên tiêu chuẩn **Anthropic Frontend Design** & **UI-UX Pro Max (Swiss
 ---
 
 ## 5. Giai đoạn 12: Thiết Lập An Toàn Dược Lâm Sàng – Quy Tắc Quên Liều (Clinical Missed Dose Protocol)
-- **Mục tiêu Dược học:** Ngăn chặn nguy cơ **hạ đường huyết kịch phát (Severe Hypoglycemia)** do uống bù / tiêm bù quá giờ đối với các thuốc ĐTĐ kích thích tiết insulin (Sulfonylurea, Meglitinide) hoặc Insulin trước bữa ăn.
-- **Nhiệm vụ 1: Cấu hình kê đơn tại trang Bác sĩ (`frontend/admin.html` & `frontend/admin.js`):**
-  - Thêm tùy chọn chỉ định xử trí khi quên liều:
-    - `[x] Cho phép uống bù nếu quên trong 1 tiếng` (mặc định cho thuốc thông thường)
-    - `[ ] Bỏ qua liều, KHÔNG ĐƯỢC uống bù nếu quá 1 tiếng` (khuyến cáo cho Sulfonylurea, Insulin ăn).
-  - Lưu trữ và mã hóa an toàn vào metadata đơn thuốc (`[NO_MAKEUP]` trong `instruction` và trường `allow_makeup`).
-  - Hiển thị nhãn cảnh báo an toàn trên danh sách đơn thuốc để bác sĩ dễ dàng theo dõi.
-- **Nhiệm vụ 2: Cảnh báo & Điều hướng tại app Bệnh nhân (`frontend/app.js`):**
-  - Kiểm tra điều kiện `canPrescriptionMakeUp(p)`:
-    - Nếu thuốc **KHÔNG CHO PHÉP UỐNG BÙ** và đã quá 1 tiếng:
-      - Ẩn hoàn toàn nút "Uống bù ngay".
-      - Hiển thị khung cảnh báo an toàn chuẩn dược sĩ: *"Bạn đã quên thuốc quá 1 tiếng. Với loại thuốc này, vui lòng bỏ qua liều, tuyệt đối không được uống lại để tránh nguy cơ hạ đường huyết nguy hiểm. Hãy chờ đến cữ kế tiếp!"*
-      - Thẻ chuyển sang trạng thái đã ghi nhận bỏ qua.
-    - Nếu thuốc **CHO PHÉP UỐNG BÙ**: Vẫn giữ nút "Uống bù ngay" như bình thường.
-- **Nhiệm vụ 3: Phỏng vấn Dược sĩ lâm sàng & Người dùng:**
-  - Khảo sát các chi tiết về câu chữ cảnh báo và hành vi mặc định khi kê đơn.
+- [x] Đã hoàn thành 100%
+
+---
+
+## 6. Giai đoạn 13: Hộp Thoại Nhắc Duyệt Chuông Khi Đổi Thiết Bị (Device Push Permission Onboarding Modal)
+- **Bối cảnh & Vấn đề:** Khi người dùng chuyển sang máy mới / trình duyệt mới (ví dụ từ laptop sang điện thoại hoặc đổi thiết bị), quyền thông báo chưa được duyệt nên hệ thống không thể rung chuông nhắc uống thuốc. Người dùng dễ quên bấm nút nhỏ bên dưới.
+- **Giải pháp UX:**
+  - Thiết kế Hộp thoại Modal nổi bật chính giữa màn hình với lớp nền làm mờ tập trung chú ý ngay sau khi vào app.
+  - Cảnh báo rõ lý do: Thiết bị này chưa được cấp quyền thông báo đẩy -> nguy cơ bỏ lỡ cữ thuốc.
+  - Nút chính: **"Duyệt thông báo ngay"** -> Yêu cầu cấp quyền và kích hoạt Web Push ngay lập tức.
+  - Nút phụ: **"Bỏ qua (Để sau)"** -> Tạm ẩn trong phiên làm việc hiện tại (`sessionStorage`), mở lại ứng dụng phiên sau sẽ tiếp tục nhắc nhở.
+
 
 

@@ -85,6 +85,13 @@
 - [x] **Task 28: Cập nhật cơ sở dữ liệu `sql/01_schema.sql`, kiểm thử luồng lâm sàng và bump cache**
   - **Mô tả:** Bổ sung cột `allow_makeup` trong `sql/01_schema.sql`, bump Service Worker lên `dtd-shell-v16`, kiểm tra cú pháp toàn bộ JS đạt 100% không lỗi.
 
-
-
+## Giai đoạn 13: Hộp Thoại Nhắc Duyệt Chuông Khi Đổi Thiết Bị (Device Push Permission Onboarding Modal)
+- [x] **Task 29: Phỏng vấn làm rõ 100% hành vi giao diện modal và nút Bỏ qua**
+  - **Mô tả:** Đã phỏng vấn người dùng qua `ask_question`, chốt phương án hiển thị Hộp thoại Modal trung tâm có backdrop và ghi nhớ tạm ẩn trong phiên hiện tại (`sessionStorage`).
+- [x] **Task 30: Thêm cấu trúc Modal `#dlg-push-permission` trong `frontend/index.html`**
+  - **Mô tả:** Đã thiết kế dialog nổi bật giữa màn hình với icon chuông, lời nhắn nhắc nhở nguy cơ quên thuốc khi đổi máy, nút "Duyệt thông báo ngay" và "Bỏ qua (Để sau)".
+- [x] **Task 31: Xử lý logic kiểm tra và kích hoạt thông báo trong `frontend/app.js`**
+  - **Mô tả:** Đã bổ sung `openPushPermissionModal()`, `closePushPermissionModal()`, `enablePatientPush()`. Tự động kiểm tra khi vào app và chỉ hiện modal nếu máy chưa duyệt chuông và chưa bấm bỏ qua trong phiên hiện tại (`sessionStorage`).
+- [x] **Task 32: Kiểm thử, bump cache PWA lên v17 và xác thực cú pháp**
+  - **Mô tả:** Bump Service Worker lên `dtd-shell-v17`, asset tags `?v=17`, cú pháp `node -c` toàn bộ file JS kiểm tra thành công 0 lỗi.
 

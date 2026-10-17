@@ -299,18 +299,50 @@ function enterApp() {
 }
 
 /* ---------------------------------------------------------------- Web Push Chuông nhắc thuốc */
+function openPushPermissionModal() {
+  const dlg = $('dlg-push-permission');
+  if (dlg && typeof dlg.showModal === 'function' && !dlg.open) {
+    try {
+      dlg.showModal();
+    } catch (e) {
+      console.warn('Lỗi mở modal nhắc duyệt chuông:', e);
+    }
+  }
+}
+
+function closePushPermissionModal() {
+  const dlg = $('dlg-push-permission');
+  if (dlg && dlg.open && typeof dlg.close === 'function') {
+    try {
+      dlg.close();
+    } catch (e) {}
+  }
+}
+
 async function checkAndInitPatientPushStatus() {
   const box = $('patient-push-box');
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
     if (box) box.classList.add('hidden-view');
     return;
   }
   try {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
-    updatePatientPushBtnUI(!!sub);
-    if (sub) {
+    const isSubscribed = !!sub;
+    updatePatientPushBtnUI(isSubscribed);
+
+    if (isSubscribed) {
       await autoSyncPatientPush(sub);
+      closePushPermissionModal();
+    } else {
+      // Thiết bị này chưa được duyệt thông báo push
+      // Kiểm tra xem đã từng bấm "Bỏ qua" trong phiên làm việc hiện tại hay chưa
+      const isDismissed = sessionStorage.getItem('dismiss_push_prompt') === '1';
+      if (!isDismissed && Notification.permission !== 'denied') {
+        setTimeout(() => {
+          openPushPermissionModal();
+        }, 700);
+      }
     }
   } catch (e) {
     console.error('Lỗi kiểm tra trạng thái push:', e);
@@ -349,6 +381,46 @@ function updatePatientPushBtnUI(isSubscribed) {
   }
 }
 
+async function enablePatientPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    toast('Trình duyệt hoặc thiết bị này không hỗ trợ thông báo đẩy', 'error');
+    return false;
+  }
+  const reg = await navigator.serviceWorker.ready;
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    toast('Bạn đã từ chối quyền thông báo trên trình duyệt. Hãy cho phép trong cài đặt trang web.', 'error');
+    return false;
+  }
+  if (!cfg || !cfg.vapid_public_key) {
+    toast('Chưa cấu hình VAPID_PUBLIC_KEY trên máy chủ', 'error');
+    return false;
+  }
+
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlB64ToUint8Array(cfg.vapid_public_key),
+  });
+
+  const p256dhKey = sub.getKey('p256dh');
+  const authKey = sub.getKey('auth');
+  const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(p256dhKey)));
+  const auth = btoa(String.fromCharCode.apply(null, new Uint8Array(authKey)));
+
+  await authApi('/api/patient/push-subscription', {
+    method: 'POST',
+    body: JSON.stringify({
+      endpoint: sub.endpoint,
+      p256dh,
+      auth,
+    }),
+  });
+
+  updatePatientPushBtnUI(true);
+  closePushPermissionModal();
+  return true;
+}
+
 async function onTogglePatientPush() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     toast('Trình duyệt không hỗ trợ thông báo đẩy', 'error');
@@ -379,45 +451,18 @@ async function onTogglePatientPush() {
   }
 
   // NẾU CHƯA BẬT -> TIẾN HÀNH BẬT (SUBSCRIBE)
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') {
-    toast('Bạn đã từ chối quyền thông báo trên trình duyệt', 'error');
-    return;
-  }
-
-  if (!cfg || !cfg.vapid_public_key) {
-    toast('Chưa cấu hình VAPID_PUBLIC_KEY trên máy chủ', 'error');
-    return;
-  }
-
   if (btn) { btn.disabled = true; btn.textContent = 'Đang kích hoạt…'; }
-
   try {
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlB64ToUint8Array(cfg.vapid_public_key),
-    });
-
-    const p256dhKey = sub.getKey('p256dh');
-    const authKey = sub.getKey('auth');
-    const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(p256dhKey)));
-    const auth = btoa(String.fromCharCode.apply(null, new Uint8Array(authKey)));
-
-    await authApi('/api/patient/push-subscription', {
-      method: 'POST',
-      body: JSON.stringify({
-        endpoint: sub.endpoint,
-        p256dh,
-        auth,
-      }),
-    });
-
-    updatePatientPushBtnUI(true);
-    toast('✓ Đã bật chuông nhắc thuốc thành công cho điện thoại này!');
+    const ok = await enablePatientPush();
+    if (ok) {
+      toast('✓ Đã bật chuông nhắc thuốc thành công cho thiết bị này!');
+    }
   } catch (err) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Bật chuông'; }
     console.error('Lỗi bật chuông nhắc thuốc:', err);
     toast('Không thể bật chuông: ' + err.message, 'error');
+  } finally {
+    const sub = await reg.pushManager.getSubscription();
+    updatePatientPushBtnUI(!!sub);
   }
 }
 
@@ -685,16 +730,68 @@ function bindEvents() {
   }
 
   // Tự động đóng modal khi người dùng bấm vào vùng nền mờ bên ngoài (backdrop)
-  ['dlg-test-email', 'dlg-missed-reason', 'dlg-font-size'].forEach((dlgId) => {
+  ['dlg-test-email', 'dlg-missed-reason', 'dlg-font-size', 'dlg-push-permission'].forEach((dlgId) => {
     const d = $(dlgId);
     if (d) {
       d.addEventListener('click', (e) => {
         if (e.target === d && d.open) {
+          if (dlgId === 'dlg-push-permission') {
+            sessionStorage.setItem('dismiss_push_prompt', '1');
+          }
           d.close();
         }
       });
     }
   });
+
+  // Hộp thoại duyệt chuông nhắc thuốc trên thiết bị mới
+  const dlgPush = $('dlg-push-permission');
+  if (dlgPush) {
+    dlgPush.addEventListener('cancel', () => {
+      sessionStorage.setItem('dismiss_push_prompt', '1');
+    });
+  }
+
+  if ($('btn-modal-push-allow')) {
+    $('btn-modal-push-allow').addEventListener('click', async () => {
+      const btn = $('btn-modal-push-allow');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `
+          <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span>Đang kích hoạt…</span>
+        `;
+      }
+      try {
+        const ok = await enablePatientPush();
+        if (ok) {
+          toast('✓ Đã bật chuông nhắc thuốc thành công cho thiết bị này!');
+        }
+      } catch (err) {
+        console.error('Lỗi bật chuông từ modal:', err);
+        toast('Không thể bật chuông: ' + err.message, 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `
+            <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span>Duyệt thông báo ngay</span>
+          `;
+        }
+      }
+    });
+  }
+
+  if ($('btn-modal-push-skip')) {
+    $('btn-modal-push-skip').addEventListener('click', () => {
+      sessionStorage.setItem('dismiss_push_prompt', '1');
+      closePushPermissionModal();
+      toast('Đã bỏ qua. Bạn có thể bật chuông bất cứ lúc nào ở thẻ Nhắc thuốc.');
+    });
+  }
 
   if ($('btn-do-send-test-email')) {
     $('btn-do-send-test-email').addEventListener('click', async () => {
