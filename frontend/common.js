@@ -187,6 +187,9 @@ function urlB64ToUint8Array(base64String) {
 function validateNewPassword(p1, p2) {
   if (p1.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự';
   if (p1 === '123456') return 'Không dùng mật khẩu mặc định 123456';
+  if (!/[a-zA-Z]/.test(p1) || !/[0-9]/.test(p1)) {
+    return 'Mật khẩu phải bao gồm cả chữ cái và chữ số (ví dụ: Matkhau123)';
+  }
   if (p1 !== p2) return 'Hai mật khẩu không khớp';
   return '';
 }

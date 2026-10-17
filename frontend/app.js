@@ -460,31 +460,84 @@ function bindEvents() {
       showView('login');
     });
   }
-  $('pw-form').addEventListener('submit', (e) => onChangePassword(e, 'pw-new', 'pw-new2', 'pw-error', 'pw-submit', false));
+  if ($('btn-clear-adr')) {
+    $('btn-clear-adr').addEventListener('click', () => {
+      const el = $('adr-desc');
+      if (el) {
+        if (!el.value.trim()) {
+          toast('Ô mô tả đang trống', 'info');
+          return;
+        }
+        el.value = '';
+        el.focus();
+        show($('voice-hint-adr'), false);
+        toast('Đã xóa nội dung mô tả', 'info');
+      }
+    });
+  }
+  $('pw-form').addEventListener('submit', (e) => onChangePassword(e, 'pw-new', 'pw-new2', 'pw-error', 'pw-submit', false, 'pw-old'));
   $('sugar-form').addEventListener('submit', onSaveSugar);
   $('adr-form').addEventListener('submit', onSubmitAdr);
-  $('logout-btn').addEventListener('click', async () => {
+  $('logout-btn').addEventListener('click', () => {
+    const btn = $('logout-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ Đang đăng xuất…';
+    }
+
+    // 1. Hủy đăng ký push chạy ngầm trong nền (fire-and-forget), không làm nghẽn luồng đăng xuất
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.getRegistration().then((reg) => {
+        if (!reg) return;
+        reg.pushManager.getSubscription().then((sub) => {
+          if (sub) {
+            fetch('/api/push-subscription/unsubscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ endpoint: sub.endpoint }),
+            }).catch(() => {});
+            sub.unsubscribe().catch(() => {});
+          }
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+
+    // 2. Xóa sạch mọi session và cache trong localStorage lập tức
     try {
       localStorage.removeItem('dtd_cached_profile');
       localStorage.removeItem('dtd_cached_prescriptions');
       localStorage.removeItem('dtd_sync_queue');
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-        const reg = await navigator.serviceWorker.ready;
-        const sub = await reg.pushManager.getSubscription();
-        if (sub) {
-          await fetch('/api/push-subscription/unsubscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ endpoint: sub.endpoint }),
-          }).catch(() => {});
-          await sub.unsubscribe().catch(() => {});
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('sb-') || key.startsWith('dtd_cached_logs_'))) {
+          localStorage.removeItem(key);
         }
       }
     } catch (e) {
-      console.warn('Lỗi hủy push khi đăng xuất:', e);
+      console.warn('Lỗi dọn dẹp storage khi đăng xuất:', e);
     }
-    await sb.auth.signOut();
-    location.reload();
+
+    // 3. Reset toàn bộ state trong bộ nhớ
+    profile = null;
+    _prevTakenCount = -1;
+
+    // 4. Kích hoạt signOut của Supabase ngầm (xóa cookie / indexedDB)
+    try {
+      if (sb && sb.auth) {
+        sb.auth.signOut().catch(() => {});
+      }
+    } catch (e) {}
+
+    // 5. Chuyển ngay lập tức về màn hình đăng nhập siêu tốc
+    showView('login');
+    if ($('login-user')) $('login-user').value = '';
+    if ($('login-pw')) $('login-pw').value = '';
+    setError($('login-error'), '');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Đăng xuất tài khoản';
+    }
+    toast('✓ Đã đăng xuất thành công', 'info');
   });
   window.addEventListener('online', () => {
     updateNetworkBanner();
@@ -688,7 +741,7 @@ async function onTestPushPatient() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = '🧪 Thử chuông';
+      btn.textContent = '🔔 Thử rung chuông';
     }
   }
 }
@@ -725,19 +778,67 @@ async function onLogin(e) {
   await afterLogin();
 }
 
-async function onChangePassword(e, id1, id2, errId, btnId, first) {
+async function onChangePassword(e, id1, id2, errId, btnId, first, oldPwId = null) {
   e.preventDefault();
+  setError($(errId), '');
   const p1 = $(id1).value, p2 = $(id2).value;
+
+  if (oldPwId) {
+    const oldPw = $(oldPwId).value;
+    if (!oldPw) {
+      setError($(errId), 'Vui lòng nhập mật khẩu hiện tại (mật khẩu cũ)');
+      $(oldPwId).focus();
+      return;
+    }
+    if (p1 && p1 === oldPw) {
+      setError($(errId), 'Mật khẩu mới phải khác mật khẩu hiện tại');
+      $(id1).focus();
+      return;
+    }
+  }
+
   const msg = validateNewPassword(p1, p2);
   setError($(errId), msg);
   if (msg) return;
-  const btn = $(btnId); btn.disabled = true;
+
+  const btn = $(btnId);
+  const originalBtnText = btn.textContent;
+  btn.disabled = true;
+
+  // 1. Kiểm tra xác thực mật khẩu cũ nếu có
+  if (oldPwId) {
+    btn.textContent = '⏳ Đang kiểm tra mật khẩu cũ…';
+    const oldPw = $(oldPwId).value;
+    const emailToVerify = (profile && profile.email) || `${(profile && profile.patient_code) || ''}@benhnhan.local`;
+    try {
+      const { error: verifyErr } = await sb.auth.signInWithPassword({
+        email: emailToVerify,
+        password: oldPw,
+      });
+      if (verifyErr) {
+        btn.disabled = false;
+        btn.textContent = originalBtnText;
+        setError($(errId), 'Mật khẩu hiện tại không chính xác. Vui lòng kiểm tra lại!');
+        $(oldPwId).focus();
+        return;
+      }
+    } catch (verEx) {
+      btn.disabled = false;
+      btn.textContent = originalBtnText;
+      setError($(errId), 'Không thể xác thực mật khẩu hiện tại. Vui lòng thử lại!');
+      return;
+    }
+  }
+
+  btn.textContent = '⏳ Đang lưu mật khẩu mới…';
   const { error } = await sb.auth.updateUser({ password: p1 });
   if (error) {
     btn.disabled = false;
-    setError($(errId), 'Không đổi được mật khẩu. Hãy thử mật khẩu khác.');
+    btn.textContent = originalBtnText;
+    setError($(errId), 'Không đổi được mật khẩu: ' + (error.message || 'Hãy thử mật khẩu khác.'));
     return;
   }
+
   // Cập nhật trạng thái đổi mật khẩu (tương thích linh hoạt với cả schema cũ và mới của Supabase)
   const updatePayload = { must_change_password: false };
   if (profile && 'is_first_login' in profile) {
@@ -749,18 +850,24 @@ async function onChangePassword(e, id1, id2, errId, btnId, first) {
     const retry = await sb.from('profiles').update({ must_change_password: false }).eq('id', profile.id);
     e2 = retry.error;
   }
+
   btn.disabled = false;
+  btn.textContent = originalBtnText;
   if (e2) {
     console.error('Lỗi cập nhật hồ sơ sau đổi mật khẩu:', e2);
     setError($(errId), 'Đã đổi mật khẩu nhưng chưa cập nhật hồ sơ, vui lòng thử lại');
     return;
   }
+
   if (profile) {
     profile.is_first_login = false;
     profile.must_change_password = false;
   }
-  $(id1).value = ''; $(id2).value = '';
-  toast('Đã đổi mật khẩu thành công');
+
+  if (oldPwId && $(oldPwId)) $(oldPwId).value = '';
+  $(id1).value = '';
+  $(id2).value = '';
+  toast('✓ Đã đổi mật khẩu thành công', 'success');
   if (first) enterApp();
 }
 

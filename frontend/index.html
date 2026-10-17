@@ -84,13 +84,16 @@
       <h2 class="text-xl font-extrabold text-teal-800">Đặt mật khẩu mới</h2>
       <p class="text-slate-600 text-sm">Đây là lần đăng nhập đầu tiên. Vì an toàn, vui lòng đổi mật khẩu mặc định.</p>
       <form id="force-pw-form" class="space-y-4" novalidate>
+        <p class="text-[12px] text-teal-800 bg-teal-50 border border-teal-200 rounded-xl px-3 py-2.5 font-medium leading-relaxed">
+          💡 <strong>Yêu cầu mật khẩu:</strong> Tối thiểu 6 ký tự, phải bao gồm cả <strong>chữ cái</strong> và <strong>chữ số</strong> (ví dụ: <code class="font-bold text-teal-900 bg-white/70 px-1 py-0.5 rounded">Matkhau123</code>).
+        </p>
         <div>
-          <label for="force-new-pw" class="block text-sm font-semibold mb-1">Mật khẩu mới (ít nhất 6 ký tự)</label>
-          <input id="force-new-pw" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border border-slate-300 rounded-xl px-4 py-3 text-lg">
+          <label for="force-new-pw" class="block text-sm font-semibold mb-1">Mật khẩu mới (tối thiểu 6 ký tự, gồm cả chữ và số)</label>
+          <input id="force-new-pw" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border border-slate-300 rounded-xl px-4 py-3 text-lg" placeholder="Ví dụ: Matkhau123">
         </div>
         <div>
           <label for="force-new-pw2" class="block text-sm font-semibold mb-1">Nhập lại mật khẩu mới</label>
-          <input id="force-new-pw2" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border border-slate-300 rounded-xl px-4 py-3 text-lg">
+          <input id="force-new-pw2" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border border-slate-300 rounded-xl px-4 py-3 text-lg" placeholder="Nhập lại chính xác mật khẩu mới">
         </div>
         <p id="force-pw-error" class="text-red-600 text-sm font-medium hidden-view" role="alert"></p>
         <button id="force-pw-submit" type="submit" class="btn hero-grad text-white w-full py-3.5 text-lg">Lưu mật khẩu</button>
@@ -152,17 +155,9 @@
               <p id="patient-push-desc" class="text-xs text-slate-500 font-medium">Rung chuông & báo giờ uống thuốc ra màn hình</p>
             </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <button id="btn-patient-test-email" type="button" class="btn text-xs px-3 py-2 font-bold rounded-xl shadow-sm transition-all whitespace-nowrap bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300">
-              📧 Thử gửi Email
-            </button>
-            <button id="btn-patient-test-push" type="button" class="btn text-xs px-3 py-2 font-bold rounded-xl shadow-sm transition-all whitespace-nowrap bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300">
-              🧪 Thử chuông
-            </button>
-            <button id="btn-patient-push" type="button" class="btn text-xs px-3.5 py-2 font-bold rounded-xl shadow-sm transition-all whitespace-nowrap bg-teal-600 hover:bg-teal-700 text-white">
-              Bật chuông
-            </button>
-          </div>
+          <button id="btn-patient-push" type="button" class="btn text-xs px-4 py-2.5 font-bold rounded-xl shadow-sm transition-all whitespace-nowrap bg-teal-600 hover:bg-teal-700 text-white shrink-0">
+            Bật chuông
+          </button>
         </div>
 
         <!-- HỘP THOẠI CHÚC MỪNG (XUẤT HIỆN KHI HOÀN THÀNH 100%) -->
@@ -247,9 +242,14 @@
           <div>
             <div class="flex items-center justify-between mb-1.5">
               <label for="adr-desc" class="block text-xs font-bold text-slate-600">Mô tả thêm (nếu có)</label>
-              <button id="btn-voice-adr" type="button" class="btn-voice inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-extrabold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 transition-all active:scale-95 shadow-sm" title="Bấm để nói bằng giọng nói">
-                <span>🎤 Bấm để nói</span>
-              </button>
+              <div class="flex items-center gap-1.5">
+                <button id="btn-clear-adr" type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-700 border border-slate-200 hover:border-rose-200 transition-all active:scale-95 shadow-sm" title="Xóa toàn bộ nội dung trong ô mô tả">
+                  <span>🗑️ Xóa tất cả</span>
+                </button>
+                <button id="btn-voice-adr" type="button" class="btn-voice inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-extrabold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 transition-all active:scale-95 shadow-sm" title="Bấm để nói bằng giọng nói">
+                  <span>🎤 Bấm để nói</span>
+                </button>
+              </div>
             </div>
             <textarea id="adr-desc" rows="3" maxlength="1000" class="w-full border-2 border-slate-200 focus:border-teal-600 rounded-2xl p-3 text-sm transition-all" placeholder="Thời điểm bắt đầu, mức độ kéo dài, bạn đã xử trí ra sao… Hoặc bấm nút 'Bấm để nói'"></textarea>
             <p id="voice-hint-adr" class="text-xs font-bold p-2.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 hidden-view fade-in mt-1.5" role="status"></p>
@@ -291,22 +291,46 @@
               <span class="current-font-label">Vừa</span> ✎ Đổi cỡ chữ
             </button>
           </div>
-          <div class="pt-2">
-            <button id="btn-account-test-email" type="button" class="btn w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs rounded-xl shadow-sm">
-              📧 Thử gửi Email nhắc thuốc tới hộp thư của bạn
+        </div>
+
+        <!-- KHU VỰC THỬ NGHIỆM CHỨC NĂNG RIÊNG BIỆT -->
+        <div class="card p-5 space-y-3 bg-gradient-to-br from-slate-50 to-teal-50/40 border border-teal-100 shadow-xs">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center text-lg font-bold shadow-sm shrink-0">🧪</div>
+            <div>
+              <h3 class="font-extrabold text-slate-800 text-sm">Khu vực thử nghiệm chức năng</h3>
+              <p class="text-xs text-slate-500 font-medium">Kiểm tra thông báo chuông và email nhắc thuốc trước khi dùng</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button id="btn-patient-test-push" type="button" class="btn py-2.5 px-3 bg-amber-50 hover:bg-amber-100 active:scale-95 text-amber-900 border border-amber-200 font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5">
+              <span>🔔</span> Thử rung chuông
+            </button>
+            <button id="btn-patient-test-email" type="button" class="btn py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-900 border border-emerald-200 font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5">
+              <span>📧</span> Thử gửi Email
             </button>
           </div>
+          <p class="text-[11px] text-slate-400 leading-normal">
+            * Bấm "Thử rung chuông" để kiểm tra âm báo đẩy trên thiết bị này. Bấm "Thử gửi Email" để gửi một email nhắc thuốc mẫu tới hộp thư.
+          </p>
         </div>
 
         <form id="pw-form" class="card p-5 space-y-3" novalidate>
           <h3 class="font-bold text-slate-800">Đổi mật khẩu</h3>
+          <p class="text-[12px] text-teal-800 bg-teal-50 border border-teal-200 rounded-xl px-3 py-2 font-medium leading-relaxed">
+            💡 <strong>Yêu cầu mật khẩu:</strong> Từ 6 ký tự trở lên, bao gồm cả <strong>chữ cái</strong> và <strong>chữ số</strong> (ví dụ: <code class="font-bold text-teal-900 bg-white/70 px-1 py-0.5 rounded">Matkhau123</code>).
+          </p>
           <div>
-            <label for="pw-new" class="block text-xs font-bold text-slate-600 mb-1">Mật khẩu mới</label>
-            <input id="pw-new" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-base">
+            <label for="pw-old" class="block text-xs font-bold text-slate-600 mb-1">Mật khẩu hiện tại (Mật khẩu cũ)</label>
+            <input id="pw-old" type="password" autocomplete="current-password" minlength="6" maxlength="72" required class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-base" placeholder="Nhập mật khẩu bạn đang dùng">
+          </div>
+          <div>
+            <label for="pw-new" class="block text-xs font-bold text-slate-600 mb-1">Mật khẩu mới (tối thiểu 6 ký tự, gồm cả chữ và số)</label>
+            <input id="pw-new" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-base" placeholder="Ví dụ: Matkhau123">
           </div>
           <div>
             <label for="pw-new2" class="block text-xs font-bold text-slate-600 mb-1">Nhập lại mật khẩu mới</label>
-            <input id="pw-new2" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-base">
+            <input id="pw-new2" type="password" autocomplete="new-password" minlength="6" maxlength="72" required class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-base" placeholder="Nhập lại chính xác mật khẩu mới">
           </div>
           <p id="pw-error" class="text-rose-600 text-xs font-semibold hidden-view" role="alert"></p>
           <button id="pw-submit" type="submit" class="btn bg-teal-700 text-white w-full py-3 text-sm">Lưu mật khẩu mới</button>
@@ -478,8 +502,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="/common.js?v=9"></script>
-  <script src="/app.js?v=9"></script>
+  <script src="/common.js?v=11"></script>
+  <script src="/app.js?v=11"></script>
 </body>
 </html>
 

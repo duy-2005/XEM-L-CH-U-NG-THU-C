@@ -1,51 +1,42 @@
-# Kế Hoạch Triển Khai: Tùy Chỉnh Giờ Uống Tự Do Cho Từng Thuốc (Custom Medication Times)
+# Kế Hoạch Triển Khai: Ràng Buộc Mật Khẩu Chữ & Số, Gom Cụm Nút Test & Giải Thích Cơ Chế Ghi Nhớ Thiết Bị
 
 ## 1. Tổng quan & Mục tiêu
 
-Nâng cấp hệ thống quản lý đơn thuốc để bác sĩ/dược sĩ có thể **tự do thiết lập giờ uống cụ thể (Time Picker) cho từng loại thuốc** khi nhập đơn, thay vì bị giới hạn bởi 5 khung giờ mặc định (Sáng, Trưa, Chiều, Tối, Trước ngủ):
+Thực hiện 3 nội dung theo yêu cầu của người dùng:
 
-1. **Giao diện kê đơn linh hoạt (Admin):**
-   - Bác sĩ có thể nhập bất kỳ mốc giờ nào (ví dụ: `06:30`, `14:00`, `20:15`) bằng bộ chọn giờ `<input type="time">`.
-   - Có sẵn các nút gợi ý nhanh (`07:00`, `11:30`, `16:30`, `19:00`, `21:30`) để thao tác nhanh chỉ bằng 1 chạm.
-   - Các mốc giờ đã chọn hiển thị dạng thẻ tag trực quan (`[ ⏰ 06:30 ✕ ]`, `[ ⏰ 19:30 ✕ ]`), có thể bấm ✕ để xóa dễ dàng.
-2. **Lưu trữ & Tương thích dữ liệu (Data Compatibility):**
-   - Giờ uống cụ thể được mã hóa chuẩn hóa trong đơn thuốc `[TIMES:06:30,19:30]` kèm theo hướng dẫn sử dụng.
-   - Tự động ánh xạ mốc giờ vào các cữ tương ứng (`sang`, `trua`, `chieu`, `toi`, `truoc_ngu`) để đảm bảo tính toàn vẹn và tuân thủ 100% cơ sở dữ liệu Supabase mà không làm vỡ các ràng buộc quan hệ hiện có.
-3. **Hiển thị trực quan cho bệnh nhân (Patient App):**
-   - Trên màn hình của bệnh nhân, từng cữ thuốc sẽ hiển thị rõ mốc giờ bác sĩ đã dặn: ví dụ **"⏰ 06:30 · Sáng"** hay **"⏰ 20:15 · Tối"**.
-   - Thứ tự các cữ thuốc trong ngày được tự động sắp xếp theo thứ tự thời gian từ sáng đến tối.
-4. **Nhắc nhở tự động chính xác từng phút (Backend Cron Notifier):**
-   - Tiến trình nhắc nhở chạy nền `reminder_worker()` mỗi phút sẽ kiểm tra giờ thực tế của từng thuốc.
-   - Đúng mốc giờ chỉ định (ví dụ `06:30`), hệ thống sẽ gửi Web Push thông báo ra màn hình điện thoại và gửi Email nhắc thuốc tới bệnh nhân.
+1. **Ràng buộc Mật khẩu Mới bao gồm cả CHỮ và SỐ:**
+   - Cập nhật hàm `validateNewPassword` để bắt buộc mật khẩu phải có ít nhất 1 chữ cái (`[a-zA-Z]`) và ít nhất 1 chữ số (`[0-9]`), độ dài tối thiểu 6 ký tự.
+   - Thêm dòng chú thích/hướng dẫn rõ ràng ngay dưới các ô nhập mật khẩu: *"Yêu cầu: Từ 6 ký tự trở lên, bao gồm cả chữ cái và chữ số (ví dụ: Matkhau123)"* ở cả 2 form (Lần đầu đăng nhập bắt buộc đổi và Đổi mật khẩu trong Tab Tài khoản).
+2. **Tách cụm nút Thử nghiệm (Test) ra khỏi lịch nhắc thuốc:**
+   - Dọn sạch giao diện thẻ cữ thuốc `#patient-push-box` ở tab **"Hôm nay"**: Chỉ giữ lại nút bật/tắt chuông chính để bệnh nhân không bị rối mắt.
+   - Chuyển toàn bộ các nút thử nghiệm (*"📧 Thử gửi Email"* và *"🧪 Thử chuông"*) sang một **Hộp thoại/Card kiểm tra chức năng riêng biệt** trong Tab **"Tài khoản"** (*"🧪 Khu vực thử nghiệm & Kiểm tra thông báo"*).
+3. **Giải thích cặn kẽ cơ chế Kỹ thuật: "Hệ thống nhớ thiết bị đăng nhập như thế nào?":**
+   - Phân tích cơ chế Session JWT trong `localStorage` của trình duyệt.
+   - Phân tích cơ chế Định danh Thiết bị đẩy (Device Push Endpoint) qua bảng `push_subscriptions`.
 
 ---
 
-## 2. Danh Sách Nhiệm Vụ (Task List)
+## 2. Kế Hoạch Nhiệm Vụ (Task List)
 
-### Giai đoạn 1: Giao diện Kê Đơn Tùy Chỉnh Giờ (Frontend Admin)
-- [x] **Task 1: Cập nhật giao diện chọn giờ trong `frontend/admin.html`**
-  - Thay thế danh sách checkbox cũ bằng khu vực chọn mốc giờ: Time input + Nút "Thêm giờ" + Các nút gợi ý nhanh + Vùng hiển thị tags mốc giờ đã chọn.
-- [x] **Task 2: Xử lý logic chọn giờ và lưu đơn trong `frontend/admin.js`**
-  - Quản lý danh sách mốc giờ dạng mảng `['06:30', '19:00']`.
-  - Hàm tự động phân bổ mốc giờ vào các `frequency` slot tương ứng.
-  - Lưu mã hóa `[TIMES:...]` vào `instruction` và hiển thị đẹp mắt trong danh sách đơn thuốc của bệnh nhân.
+### Giai đoạn 1: Ràng Buộc Mật Khẩu Chữ & Số
+- [ ] **Task 1: Cập nhật `validateNewPassword()` trong `frontend/common.js`**
+  - Kiểm tra regex có chữ cái và chữ số.
+- [ ] **Task 2: Thêm dòng hướng dẫn yêu cầu mật khẩu trên giao diện `frontend/index.html`**
+  - Hiển thị dòng ghi chú ở `#force-pw-form` và `#pw-form`.
 
-### Giai đoạn 2: Trải nghiệm Xem Lịch Thuốc của Bệnh Nhân (Frontend Patient App)
-- [x] **Task 3: Hàm trích xuất giờ `parsePrescriptionTimes()` trong `frontend/common.js`**
-  - Nhận diện thẻ `[TIMES:...]` từ đơn thuốc, trả về mốc giờ cụ thể cho từng cữ.
-- [x] **Task 4: Hiển thị mốc giờ trên thẻ thuốc và sắp xếp thứ tự trong `frontend/app.js`**
-  - Hiển thị badge mốc giờ `⏰ 06:30` trên từng cữ thuốc.
-  - Sắp xếp các loại thuốc trong ngày theo đúng mốc giờ thời gian thực tế.
+### Giai đoạn 2: Tách Cụm Nút Thử Nghiệm Sang Ô Riêng Biệt
+- [ ] **Task 3: Dọn dẹp thẻ `#patient-push-box` tại Tab Hôm nay (`frontend/index.html`)**
+  - Xóa 2 nút test khỏi thanh cữ thuốc, chỉ giữ nút chính "Bật chuông".
+- [ ] **Task 4: Tạo Card "Khu vực Thử nghiệm & Kiểm tra" trong Tab Tài khoản (`frontend/index.html` & `frontend/app.js`)**
+  - Gom các nút thử email và thử chuông vào ô riêng biệt, có giải thích rõ ràng đây là khu vực dành cho người dùng/bác sĩ test thử.
 
-### Giai đoạn 3: Hệ Thống Nhắc Nhở Tự Động Theo Giờ Từng Thuốc (Backend)
-- [x] **Task 5: Nâng cấp `check_and_send_reminders()` trong `backend/notifier.py`**
-  - Kiểm tra giờ thực tế của từng đơn thuốc theo `parse_prescription_times()`.
-  - Gửi thông báo Web Push và Email đúng vào phút chỉ định của từng loại thuốc.
+### Giai đoạn 3: Phân Tích & Giải Thích Cơ Chế Ghi Nhớ Thiết Bị
+- [ ] **Task 5: Trình bày chi tiết cơ chế nhận diện và lưu vết thiết bị đăng nhập**
 
 ---
 
 ## 3. Rủi ro & Giải pháp phòng ngừa
-| Rủi ro | Mức độ | Giải pháp |
-|---|---|---|
-| Bác sĩ chọn 2 mốc giờ cùng rơi vào 1 khung buổi (ví dụ 07:00 và 08:00) | Trung bình | Tự động cảnh báo hoặc ánh xạ mốc giờ vào các cữ kế tiếp, đảm bảo mỗi mốc giờ có 1 bản ghi riêng trong nhật ký |
-| Đơn thuốc cũ trước đây không có mốc giờ cụ thể | Thấp | Tự động fallback về giờ mặc định của hệ thống (`07:00`, `11:30`, `19:00`), đảm bảo 100% tương thích ngược |
+| Rủi ro | Giải pháp |
+|---|---|
+| Bệnh nhân đặt mật khẩu quá phức tạp rồi quên | Đưa ví dụ gợi ý dễ nhớ (chữ + số quen thuộc, vd: `thuoc123`), có hỗ trợ bác sĩ đặt lại mật khẩu từ Admin |
+| Chuyển nút test khiến người dùng không tìm thấy | Đặt trong Tab Tài khoản với tiêu đề nổi bật có icon `🧪` rõ nét |
