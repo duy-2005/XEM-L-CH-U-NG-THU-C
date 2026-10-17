@@ -1,41 +1,60 @@
-# Kế Hoạch Nâng Cấp: Tích Hợp GSAP Hoạt Ảnh Cao Cấp & Loại Bỏ Emoji Kiểu AI
+# Kế Hoạch Tái Thiết Kế Giao Diện Hệ Thống (UI/UX Redesign)
+Dựa trên tiêu chuẩn **Anthropic Frontend Design** & **UI-UX Pro Max (Swiss Medical Minimalism)**
 
-## 1. Phân Tích Yêu Cầu & Bối Cảnh
-Người dùng yêu cầu 2 trọng tâm:
-1. **Loại bỏ hoàn toàn các biểu tượng cảm xúc (Emoji/Icons AI-style):**
-   - Các emoji như 💊, 🩸, 🧪, 💡, 🔔, 🎉, 💉 tạo cảm giác như sản phẩm do AI sinh ngẫu nhiên, thiếu tính chuyên nghiệp y khoa.
-   - Thay thế bằng **biểu tượng vector SVG y tế tối giản, sắc nét (chuẩn Apple Health / Mayo Clinic)** hoặc **phong cách Typographic tối giản, sang trọng**.
-2. **Tích hợp bộ thư viện GSAP (từ `gsap-public`):**
-   - Sử dụng file lõi `gsap.min.js` để tạo trải nghiệm ứng dụng mượt mà 60fps.
-   - Áp dụng vào các tương tác cốt lõi:
-     - Hiệu ứng chuyển Tab mượt mà (Cross-fade & Slide).
-     - Hiệu ứng tải danh sách thuốc tuần tự (Stagger Entrance).
-     - Hiệu ứng hoàn thành cữ thuốc (chuyển sang trạng thái trầm màu êm ái).
-     - Hiệu ứng thanh tiến độ (Smooth progress tween).
-     - Hiệu ứng mở/đóng Modal/Popup nhẹ nhàng.
+## 1. Mục Tiêu & Phạm Vi (Scope)
+- **Mục tiêu:** Nâng cấp toàn diện thẩm mỹ giao diện người bệnh và quản trị viên từ phong cách cơ bản thành một ứng dụng y tế cao cấp chuẩn quốc tế (tương tự Apple Health, Mayo Clinic, One Medical).
+- **Phạm vi bảo toàn (CRITICAL):**
+  - **GIỮ NGUYÊN 100% chức năng:** Tất cả các ID phần tử HTML (`#btn-patient-push`, `#med-list`, `#sugar-form`, `#logout-btn`, `#pw-form`,...), logic sự kiện, kết nối cơ sở dữ liệu Supabase và backend API.
+  - **GIỮ NGUYÊN các hiệu ứng GSAP đã làm:** Hoạt ảnh chuyển tab, stagger nạp thẻ thuốc, hiệu ứng tiến độ, tương tác nút bấm.
+  - **CHỈ THAY ĐỔI:** Hệ thống CSS tokens (`frontend/styles.css`), bố cục thẻ card, bảng màu y tế cao cấp, typography, độ tương phản và phân cấp thị giác trong `frontend/index.html` và `frontend/admin.html`.
 
 ---
 
-## 2. Kế Hoạch Thực Hiện Chi Tiết
+## 2. Các Tiêu Chuẩn Thiết Kế Y Tế Cốt Lõi Áp Dụng
 
-### Giai đoạn 1: Chuẩn bị Thư viện GSAP Offline & Caching PWA
-- [ ] Sao chép `gsap.min.js` từ `/Users/acc/Downloads/gsap-public/minified/gsap.min.js` vào thư mục `frontend/`.
-- [ ] Khai báo `gsap.min.js` vào `frontend/service-worker.js` để ứng dụng hoạt động 100% offline.
-- [ ] Nhúng `<script src="/gsap.min.js?v=12"></script>` vào [frontend/index.html](file:///Users/acc/Bản%20gửi%20thầy%20Hải%20/frontend/index.html).
+### A. Hệ thống màu sắc (Color Tokens - Clinical Trust)
+- **Nền chính (Canvas):** `#f8fafc` (Slate 50) nhẹ nhàng, tinh sạch, không chói mắt.
+- **Màu chủ đạo (Primary Medical Teal):**
+  - Brand Deep: `#0f766e` (Teal 700) – Đậm đà, uy tín, tin cậy.
+  - Brand Vibrant: `#0d9488` (Teal 600) – Tạo điểm nhấn hành động.
+  - Brand Surface: `#f0fdfa` (Teal 50) – Nền mềm cho các khối thông tin nổi bật.
+- **Độ tương phản chữ (Typography Contrast):**
+  - Text Primary: `#0f172a` (Slate 900) – Tối ưu cho người lớn tuổi / mắt kém.
+  - Text Secondary: `#475569` (Slate 600) – Rõ ràng, không bị mờ nhạt.
+- **Trạng thái cữ thuốc:**
+  - Chưa dùng / Sắp tới: Thẻ trắng nổi bật viền slate mỏng (`#e2e8f0`).
+  - Đang đến giờ uống: Viền xanh y tế `#0d9488`, chỉ báo nhịp thở pulse dịu mắt.
+  - Đã uống xong: Nền xám trầm dịu `#f1f5f9`, viền `#cbd5e1`, nút xám nhạt vô hiệu hóa chống bấm nhầm.
+  - Bỏ lỡ / Quá giờ: Nền đỏ hồng phấn nhẹ nhàng `#fff1f2`, cảnh báo dịu mắt không gây hoảng loạn.
 
-### Giai đoạn 2: Thanh lọc Giao diện - Thay Emoji bằng SVG Y Tế Tinh Tế
-- [ ] Thay các emoji tại thanh điều hướng đáy (Bottom Nav): 💊, 🩸, ⚠️, 👤 thành các icon SVG vector thanh mảnh (Heroicons/Lucide).
-- [ ] Bỏ các emoji trang trí ở tiêu đề: 🔔 Nhắc thuốc, 🧪 Khu vực thử nghiệm, 💡 Yêu cầu mật khẩu, 🎉 Hoàn thành.
-- [ ] Tại thẻ thuốc: Bỏ emoji ⏰, 💉; thay bằng tag chữ y tế chuyên nghiệp: `Insulin`, thời gian dạng badge thanh lịch.
-- [ ] Nút hành động: Dùng dấu check SVG hoặc nhãn text rõ ràng, không dùng emoji màu mè.
+### B. Typography & Bố cục (Layout & Hierarchy)
+- **Phông chữ:** `Plus Jakarta Sans` cho tiêu đề (hiện đại, nhân văn) kết hợp `Inter` cho dữ liệu số đo đường huyết và liều thuốc (chính xác, dễ đọc).
+- **Chạm bấm chuẩn công thái học:** Mọi nút bấm (CTA) đạt chiều cao tối thiểu $48\text{px}$ – $52\text{px}$, khoảng cách chạm rộng rãi để người cao tuổi bấm chính xác không bị trượt.
+- **Lược bỏ "SaaS-card kit" rập khuôn:** Sử dụng các đường viền tinh xảo (1px border), bề mặt đổ bóng tự nhiên nhiều lớp (`soft multi-layered shadows`), không dùng viền quá to hay bóng xám đen nhân tạo.
 
-### Giai đoạn 3: Viết Hoạt Ảnh GSAP Tinh Tế trong `frontend/app.js`
-- [ ] `animateTabTransition(oldTab, newTab)`: Chuyển tab trượt nhẹ và mờ ảo tự nhiên.
-- [ ] `animateMedCards()`: Danh sách thuốc trượt lên lần lượt (stagger 0.08s) khi tải trang.
-- [ ] `animateMarkDoseTaken(cardEl, btnEl)`: Hoạt ảnh xác nhận uống thuốc êm ái, chuyển nền xám nhẹ nhàng.
-- [ ] `animateProgressBar(fromPct, toPct)`: GSAP tween cho thanh tiến độ tuân thủ.
-- [ ] `animateModal(modalEl, isOpen)`: Hoạt ảnh phóng to/thu nhỏ nhẹ nhàng cho các hộp thoại.
+---
 
-### Giai đoạn 4: Kiểm thử & Nghiệm thu
-- [ ] Kiểm tra cú pháp `node -c`.
-- [ ] Kiểm tra độ mượt trên thiết bị di động, đảm bảo không bị giật lag.
+## 3. Kế Hoạch Triển Khai Từng Bước (Roadmap)
+
+### Giai đoạn 1: Khảo sát & Phỏng vấn ý kiến người dùng (Interview 100%)
+- [ ] Phỏng vấn người dùng về phong cách tổng thể mong muốn (Tối giản thanh lịch Swiss Medical hay Giao diện thẻ hiện đại có chiều sâu).
+- [ ] Xác nhận tông màu Header và bảng màu cữ thuốc.
+
+### Giai đoạn 2: Tái cấu trúc Hệ Thống Design Tokens trong `frontend/styles.css`
+- [ ] Chuẩn hóa biến màu `--bg`, `--card`, `--text-main`, `--text-muted`, `--border`.
+- [ ] Tinh chỉnh hệ thống đổ bóng `var(--shadow-card)`, `var(--shadow-hover)`.
+- [ ] Hoàn thiện trạng thái cữ thuốc `.card-taken`, `.card-current-slot`, `.card-missed`.
+
+### Giai đoạn 3: Tinh chỉnh Giao diện Màn hình Người bệnh (`frontend/index.html`)
+- [ ] Nâng cấp Header: Thiết kế bố cục phẳng sang trọng, huy hiệu trạng thái điều trị gọn gàng.
+- [ ] Nâng cấp Thẻ tiến độ uống thuốc: Thiết kế thanh % tinh xảo dạng pill y tế.
+- [ ] Nâng cấp Thẻ thuốc trong `frontend/app.js`: Phân cấp thông tin tên thuốc, liều lượng, giờ uống rõ ràng hơn nữa.
+- [ ] Nâng cấp Form đường huyết & Form triệu chứng: Ô nhập liệu lớn, hiển thị số đo to rõ ràng.
+- [ ] Nâng cấp Thanh điều hướng đáy (Bottom Nav): Thiết kế thanh kính mờ (frosted glass) chuẩn iOS Native.
+
+### Giai đoạn 4: Tinh chỉnh Giao diện Bác sĩ (`frontend/admin.html`)
+- [ ] Đồng bộ phong cách thẻ bệnh nhân, bảng chỉ số đường huyết và form kê đơn.
+
+### Giai đoạn 5: Kiểm thử Toàn diện & Xác thực
+- [ ] Kiểm tra tính toàn vẹn của tất cả các luồng bấm, đăng nhập, nạp dữ liệu, đồng bộ offline.
+- [ ] Kiểm tra responsive trên các kích thước màn hình điện thoại (iPhone SE, iPhone 14/15/16, Android, iPad).

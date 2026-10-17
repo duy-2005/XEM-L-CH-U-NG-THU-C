@@ -47,3 +47,18 @@
 
 ## Giai đoạn 8: Kiểm Thử & Nghiệm Thu
 - [x] **Task 14: Kiểm tra cú pháp và trải nghiệm người dùng trên trình duyệt**
+
+## Giai đoạn 9: Phỏng Vấn & Định Hướng Phong Cách Thiết Kế Mới
+- [x] **Task 15: Phỏng vấn sở thích thẩm mỹ của người dùng để hiểu 100% mong muốn**
+  - **Mô tả:** Hỏi người dùng lựa chọn phong cách trực quan (Swiss Medical tinh giản hay Modern Card chiều sâu), bảng màu Header và độ tương phản.
+  - **Tiêu chí nghiệm thu:** Đã chốt: Phong cách Swiss Medical tinh giản, Header phẳng Clean Clinic sang trọng, đồng bộ cả Patient & Admin.
+
+## Giai đoạn 10: Tái Thiết Kế Giao Diện Theo Chuẩn Y Tế Cao Cấp
+- [x] **Task 16: Tinh chỉnh Design Tokens và CSS Variables (`frontend/styles.css`)**
+  - **Mô tả:** Nâng cấp đổ bóng đa tầng, đường viền 1px tinh xảo, màu chữ WCAG AAA, bo góc hiện đại.
+- [x] **Task 17: Nâng cấp bố cục hiển thị màn hình bệnh nhân (`frontend/index.html`)**
+  - **Mô tả:** Làm lại header phẳng sang trọng, thanh tiến độ thuốc, khung đo đường huyết và thẻ báo cáo triệu chứng.
+- [x] **Task 18: Tinh chỉnh giao diện trang bác sĩ (`frontend/admin.html`)**
+  - **Mô tả:** Đồng bộ thiết kế trang quản trị viên/bác sĩ chuẩn phòng khám quốc tế.
+- [x] **Task 19: Kiểm thử thẩm mỹ trên thiết bị di động và kiểm tra tính toàn vẹn chức năng**
+  - **Mô tả:** Đã kiểm tra cú pháp node -c toàn bộ file JS, bảo toàn 100% ID DOM, sự kiện và tương tác.

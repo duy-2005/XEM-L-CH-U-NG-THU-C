@@ -12,29 +12,29 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=14">
 </head>
-<body class="text-slate-800">
-  <div id="toast" role="status" aria-live="polite" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] hidden-view px-4 py-3 rounded-xl text-white font-semibold shadow-lg"></div>
+<body class="text-slate-800 bg-slate-50">
+  <div id="toast" role="status" aria-live="polite" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] hidden-view px-5 py-3.5 rounded-2xl text-white font-semibold shadow-2xl backdrop-blur-md"></div>
   <!-- ĐANG TẢI -->
   <div id="view-loading" class="min-h-screen flex flex-col items-center justify-center text-teal-700 font-semibold gap-3 px-4 text-center">
-    <div class="w-10 h-10 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin"></div>
+    <div class="w-10 h-10 border-4 border-teal-200 border-t-teal-700 rounded-full animate-spin"></div>
     <p class="text-base font-bold text-slate-700">Đang tải bảng quản trị…</p>
     <p id="loading-note" class="hidden-view text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 max-w-sm fade-in"></p>
   </div>
 
   <!-- ĐĂNG NHẬP ADMIN (CHỈ GOOGLE OAUTH) -->
   <main id="view-login" class="hidden-view min-h-screen flex items-center justify-center p-6 bg-slate-50">
-    <div class="card p-8 w-full max-w-md text-center space-y-6 fade-in shadow-xl border border-slate-200/80">
+    <div class="card p-8 w-full max-w-md text-center space-y-6 fade-in shadow-xl">
       <div>
-        <img src="/icons/icon-192.png" alt="Logo" width="76" height="76" class="mx-auto rounded-2xl shadow-md mb-3">
-        <h1 class="text-2xl font-extrabold text-teal-900 tracking-tight">Trang quản trị</h1>
+        <img src="/icons/icon-192.png" alt="Logo" width="76" height="76" class="mx-auto rounded-2xl shadow-md mb-3 border border-slate-100">
+        <h1 class="text-2xl font-black text-slate-900 tracking-tight">Trang quản trị</h1>
         <p class="text-slate-500 text-sm mt-1">Dành cho Bác sĩ & Dược sĩ lâm sàng</p>
       </div>
 
-      <div class="p-4 bg-teal-50/80 border border-teal-200/70 rounded-2xl text-left text-xs text-teal-900 space-y-1.5">
-        <div class="font-bold flex items-center gap-1.5 text-teal-800 text-sm">
-          <span>🛡️</span>
+      <div class="p-4 bg-teal-50/60 border border-teal-200/80 rounded-2xl text-left text-xs text-teal-900 space-y-1.5 shadow-xs">
+        <div class="font-bold flex items-center gap-1.5 text-teal-900 text-sm">
+          <svg class="w-4 h-4 text-teal-700 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           <span>Xác thực an toàn qua Google OAuth</span>
         </div>
         <p class="text-slate-600 leading-relaxed">
@@ -42,8 +42,8 @@
         </p>
       </div>
 
-      <button id="google-login-btn" type="button" class="btn w-full py-3.5 border border-slate-300 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold flex items-center justify-center gap-3 shadow-sm hover:shadow transition active:scale-[0.98]">
-        <svg class="w-5 h-5" viewBox="0 0 24 24">
+      <button id="google-login-btn" type="button" class="btn w-full py-3.5 border border-slate-300 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold flex items-center justify-center gap-3 shadow-xs hover:shadow transition active:scale-[0.98]">
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
           <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
           <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
@@ -52,10 +52,13 @@
         <span class="text-base text-slate-700">Đăng nhập với Google</span>
       </button>
 
-      <div id="login-error" class="text-red-700 text-xs font-medium p-3.5 bg-red-50 rounded-xl border border-red-200 text-left hidden-view leading-relaxed space-y-1" role="alert"></div>
+      <div id="login-error" class="text-rose-700 text-xs font-semibold p-3.5 bg-rose-50 rounded-xl border border-rose-200 text-left hidden-view leading-relaxed space-y-1" role="alert"></div>
 
       <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-        <span class="font-semibold text-slate-600">🛡️ Cổng Quản trị Nội bộ</span>
+        <span class="font-semibold text-slate-600 flex items-center gap-1">
+          <svg class="w-3.5 h-3.5 text-teal-700 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Cổng Quản trị Nội bộ
+        </span>
         <span>Bảo mật chuẩn Y tế</span>
       </div>
     </div>
@@ -63,10 +66,12 @@
 
   <!-- MÀN HÌNH CHỜ DUYỆT ADMIN -->
   <main id="view-approval" class="hidden-view min-h-screen flex items-center justify-center p-6 bg-slate-50">
-    <div class="card p-8 w-full max-w-md text-center space-y-5 fade-in shadow-xl border border-slate-200/80">
-      <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-sm">⏳</div>
+    <div class="card p-8 w-full max-w-md text-center space-y-5 fade-in shadow-xl">
+      <div class="w-14 h-14 bg-amber-50 border border-amber-200 text-amber-600 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+        <svg class="w-7 h-7 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
       <div>
-        <h1 class="text-xl font-extrabold text-slate-900 mb-1">Tài khoản chưa được phê duyệt</h1>
+        <h1 class="text-xl font-black text-slate-900 mb-1">Tài khoản chưa được phê duyệt</h1>
         <p class="text-xs text-slate-500">
           Tài khoản Google <strong id="approval-user-email" class="text-slate-800"></strong> chưa được cấp quyền Quản trị viên (Bác sĩ/Dược sĩ).
         </p>
@@ -75,7 +80,7 @@
         <!-- Nút gửi xin duyệt hoặc thông báo chờ -->
       </div>
       <div class="flex gap-3 pt-2">
-        <button id="approval-refresh-btn" type="button" class="btn border border-slate-300 bg-white hover:bg-slate-50 flex-1 py-2.5 text-xs font-bold rounded-xl shadow-sm">↻ Kiểm tra lại</button>
+        <button id="approval-refresh-btn" type="button" class="btn border border-slate-300 bg-white hover:bg-slate-50 flex-1 py-2.5 text-xs font-bold rounded-xl shadow-xs">↻ Kiểm tra lại</button>
         <button id="approval-logout-btn" type="button" class="btn bg-slate-200 hover:bg-slate-300 text-slate-700 flex-1 py-2.5 text-xs font-bold rounded-xl">Đăng xuất</button>
       </div>
     </div>
@@ -83,34 +88,51 @@
 
   <!-- DASHBOARD -->
   <div id="view-app" class="hidden-view min-h-screen lg:flex">
-    <aside class="hero-grad text-white lg:w-64 lg:min-h-screen p-4 lg:p-5 flex flex-col gap-3 lg:gap-4 shrink-0">
+    <aside class="bg-[#093330] border-r border-[#0f4440] text-slate-100 lg:w-64 lg:min-h-screen p-4 lg:p-5 flex flex-col gap-3 lg:gap-4 shrink-0 shadow-lg">
       <div class="flex items-center justify-between lg:justify-start gap-3">
         <div class="flex items-center gap-3">
-          <img src="/icons/icon-192.png" alt="" width="36" height="36" class="rounded-xl shadow-md shrink-0">
+          <img src="/icons/icon-192.png" alt="" width="36" height="36" class="rounded-xl shadow-md shrink-0 border border-teal-800">
           <div>
-            <p class="font-extrabold leading-tight text-sm lg:text-base">ĐTĐ – Quản trị</p>
-            <p id="admin-name" class="text-teal-100 text-xs truncate max-w-[140px]"></p>
+            <p class="font-black leading-tight text-sm lg:text-base text-white">ĐTĐ – Quản trị</p>
+            <p id="admin-name" class="text-teal-200 text-xs truncate max-w-[140px]"></p>
           </div>
         </div>
-        <button id="logout-btn" class="btn px-3 py-1.5 bg-white/15 hover:bg-white/25 text-xs lg:hidden rounded-lg font-semibold">Đăng xuất</button>
+        <button id="logout-btn" class="btn px-3 py-1.5 bg-white/10 hover:bg-white/20 text-xs lg:hidden rounded-lg font-semibold">Đăng xuất</button>
       </div>
       <nav class="flex lg:flex-col gap-1.5 lg:mt-4 overflow-x-auto pb-1 lg:pb-0 scrollbar-none flex-nowrap" aria-label="Điều hướng">
-        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2 hover:bg-white/15 text-xs lg:text-sm font-semibold rounded-xl shrink-0" data-view="alerts" aria-selected="true">🔔 Cảnh báo <span id="alert-count" class="ml-1 bg-red-500 text-xs rounded-full px-2 py-0.5 hidden-view"></span></button>
-        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2 hover:bg-white/15 text-xs lg:text-sm font-semibold rounded-xl shrink-0" data-view="patients" aria-selected="false">👥 Bệnh nhân</button>
-        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2 hover:bg-white/15 text-xs lg:text-sm font-semibold rounded-xl shrink-0" data-view="stats" aria-selected="false">📊 Thống kê</button>
-        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2 hover:bg-white/15 text-xs lg:text-sm font-semibold rounded-xl shrink-0" data-view="reminders" aria-selected="false">⏰ Lịch nhắc</button>
-        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2 hover:bg-white/15 text-xs lg:text-sm font-semibold rounded-xl shrink-0 bg-white/10" data-view="approvals" aria-selected="false">🛡️ Duyệt Admin <span id="approval-badge" class="ml-1 bg-amber-400 text-slate-900 font-bold text-xs rounded-full px-2 py-0.5 hidden-view"></span></button>
+        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2.5 hover:bg-white/10 text-xs lg:text-sm font-semibold rounded-xl shrink-0 flex items-center gap-2.5 transition" data-view="alerts" aria-selected="true">
+          <svg class="w-4 h-4 text-teal-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span>Cảnh báo</span>
+          <span id="alert-count" class="ml-auto bg-rose-500 text-white text-[11px] font-bold rounded-full px-2 py-0.5 hidden-view"></span>
+        </button>
+        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2.5 hover:bg-white/10 text-xs lg:text-sm font-semibold rounded-xl shrink-0 flex items-center gap-2.5 transition" data-view="patients" aria-selected="false">
+          <svg class="w-4 h-4 text-teal-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Bệnh nhân</span>
+        </button>
+        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2.5 hover:bg-white/10 text-xs lg:text-sm font-semibold rounded-xl shrink-0 flex items-center gap-2.5 transition" data-view="stats" aria-selected="false">
+          <svg class="w-4 h-4 text-teal-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+          <span>Thống kê</span>
+        </button>
+        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2.5 hover:bg-white/10 text-xs lg:text-sm font-semibold rounded-xl shrink-0 flex items-center gap-2.5 transition" data-view="reminders" aria-selected="false">
+          <svg class="w-4 h-4 text-teal-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>Lịch nhắc</span>
+        </button>
+        <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2.5 hover:bg-white/10 text-xs lg:text-sm font-semibold rounded-xl shrink-0 flex items-center gap-2.5 transition" data-view="approvals" aria-selected="false">
+          <svg class="w-4 h-4 text-teal-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Duyệt Admin</span>
+          <span id="approval-badge" class="ml-auto bg-amber-400 text-slate-900 font-bold text-[11px] rounded-full px-2 py-0.5 hidden-view"></span>
+        </button>
       </nav>
-      <div class="pt-2 border-t border-white/20 hidden lg:block w-full mt-auto space-y-2">
-        <button id="btn-push-toggle" type="button" class="btn w-full text-xs px-3 py-2 bg-white/20 hover:bg-white/30 text-white font-bold rounded-xl flex items-center justify-center gap-1.5">
-          <span>🔔</span>
+      <div class="pt-3 border-t border-white/10 hidden lg:block w-full mt-auto space-y-2">
+        <button id="btn-push-toggle" type="button" class="btn w-full text-xs px-3 py-2 bg-white/10 hover:bg-white/15 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 transition">
+          <svg class="w-4 h-4 text-teal-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
           <span id="push-btn-text">Bật thông báo đẩy</span>
         </button>
-        <button id="btn-test-push-admin" type="button" class="btn w-full text-xs px-3 py-2 bg-amber-400/90 hover:bg-amber-400 text-slate-900 font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition">
-          <span>🧪</span>
+        <button id="btn-test-push-admin" type="button" class="btn w-full text-xs px-3 py-2 bg-teal-600/60 hover:bg-teal-600/80 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition">
+          <svg class="w-4 h-4 text-teal-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           <span>Thử thông báo về máy</span>
         </button>
-        <button id="logout-btn-desktop" class="btn w-full px-4 py-2 bg-white/15 hover:bg-white/25 text-sm rounded-xl font-semibold">Đăng xuất</button>
+        <button id="logout-btn-desktop" class="btn w-full px-4 py-2 bg-white/10 hover:bg-white/15 text-sm rounded-xl font-semibold">Đăng xuất</button>
       </div>
     </aside>
 
@@ -140,12 +162,12 @@
           <div class="flex gap-2">
             <label for="patient-search" class="sr-only">Tìm bệnh nhân</label>
             <input id="patient-search" type="search" placeholder="Tìm theo mã / tên…" class="border border-slate-300 rounded-xl px-4 py-2 w-56">
-            <button id="add-patient-btn" class="btn hero-grad text-white px-4 py-2">+ Thêm bệnh nhân</button>
+            <button id="add-patient-btn" class="btn bg-teal-700 hover:bg-teal-800 text-white px-4 py-2 font-bold shadow-xs transition-all">+ Thêm bệnh nhân</button>
           </div>
         </div>
         <div class="card overflow-x-auto">
           <table class="w-full text-sm">
-            <thead class="bg-teal-50 text-teal-900 text-left">
+            <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 text-left font-bold">
               <tr><th class="p-3">Mã BN</th><th class="p-3">Họ tên</th><th class="p-3">Điện thoại</th><th class="p-3">Trạng thái</th><th class="p-3"></th></tr>
             </thead>
             <tbody id="patient-rows" class="divide-y divide-slate-100"></tbody>
@@ -184,7 +206,7 @@
             <form id="slot-times-form" class="space-y-3 pt-2" novalidate>
               <div class="flex items-center justify-between">
                 <h3 class="font-bold text-base text-teal-800">Cài đặt khung giờ nhắc (Giờ VN)</h3>
-                <button id="save-slots-btn" type="submit" class="btn hero-grad text-white text-xs px-3.5 py-1.5 font-bold shadow">💾 Lưu khung giờ</button>
+                <button id="save-slots-btn" type="submit" class="btn bg-teal-700 hover:bg-teal-800 text-white text-xs px-3.5 py-1.5 font-bold shadow-xs transition-all">Lưu khung giờ</button>
               </div>
               <p class="text-xs text-slate-500">Bạn có thể tự chọn giờ cho từng buổi (Sáng, Trưa, Chiều, Tối...). Hệ thống sẽ lưu và áp dụng ngay lập tức:</p>
               <div id="slot-times-inputs" class="space-y-2.5 pt-1"></div>
@@ -202,7 +224,7 @@
                 <input id="test-email-input" type="email" required placeholder="nhap_email_cua_ban@gmail.com" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm">
               </div>
               <p id="test-email-msg" class="text-sm font-medium hidden-view"></p>
-              <button id="test-email-btn" type="submit" class="btn hero-grad text-white px-4 py-2 text-sm w-full">Gửi email thử nghiệm</button>
+              <button id="test-email-btn" type="submit" class="btn bg-teal-700 hover:bg-teal-800 text-white px-4 py-2.5 text-sm w-full font-bold shadow-xs transition-all">Gửi email thử nghiệm</button>
             </form>
 
             <!-- Kích hoạt nhắc thuốc ngay lập tức -->
@@ -222,7 +244,7 @@
                   </select>
                 </div>
                 <div class="flex items-end">
-                  <button id="trigger-reminders-btn" type="button" class="btn bg-teal-600 text-white px-4 py-2 text-sm w-full">Gửi nhắc ngay</button>
+                  <button id="trigger-reminders-btn" type="button" class="btn bg-teal-700 hover:bg-teal-800 text-white px-4 py-2.5 text-sm w-full font-bold shadow-xs transition-all">Gửi nhắc ngay</button>
                 </div>
               </div>
               <div id="trigger-result" class="text-xs text-slate-600 p-3 bg-slate-50 rounded-xl hidden-view"></div>
@@ -242,7 +264,7 @@
         </div>
         <div class="card p-5">
           <div id="approvals-empty" class="text-center py-8 text-slate-500 text-sm">
-            🎉 Hiện không có yêu cầu nào đang chờ phê duyệt.
+            Hiện không có yêu cầu nào đang chờ phê duyệt.
           </div>
           <ul id="approvals-list" class="divide-y divide-slate-100"></ul>
         </div>
@@ -277,7 +299,7 @@
       <p id="np-error" class="text-red-600 text-sm font-medium hidden-view" role="alert"></p>
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" id="np-cancel" class="btn px-4 py-2 border border-slate-300 bg-white">Hủy</button>
-        <button type="submit" id="np-submit" class="btn hero-grad text-white px-5 py-2">Tạo tài khoản</button>
+        <button type="submit" id="np-submit" class="btn bg-teal-700 hover:bg-teal-800 text-white px-5 py-2 font-bold shadow-xs transition-all">Tạo tài khoản</button>
       </div>
     </form>
   </dialog>
@@ -300,7 +322,7 @@
         <ul id="pd-presc" class="space-y-2 text-sm"></ul>
       </div>
 
-      <form id="presc-form" class="bg-teal-50 rounded-2xl p-4 space-y-3" novalidate>
+      <form id="presc-form" class="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4" novalidate>
         <h3 class="font-bold">Thêm đơn thuốc</h3>
         <div class="grid sm:grid-cols-2 gap-3">
           <div>
@@ -344,7 +366,7 @@
         </div>
         <label class="flex items-center gap-2 text-sm font-semibold"><input id="rx-insulin" type="checkbox" class="w-4 h-4 accent-teal-600"> Đây là insulin (thuốc tiêm)</label>
         <p id="rx-error" class="text-red-600 text-sm font-medium hidden-view" role="alert"></p>
-        <button id="rx-submit" type="submit" class="btn hero-grad text-white px-5 py-2">Lưu đơn thuốc</button>
+        <button id="rx-submit" type="submit" class="btn bg-teal-700 hover:bg-teal-800 text-white px-5 py-2.5 font-bold shadow-xs transition-all">Lưu đơn thuốc</button>
       </form>
 
       <div>
@@ -355,7 +377,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/common.js?v=13"></script>
-  <script src="/admin.js?v=13"></script>
+  <script src="/common.js?v=14"></script>
+  <script src="/admin.js?v=14"></script>
 </body>
 </html>

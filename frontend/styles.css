@@ -1,16 +1,20 @@
 /* ==========================================================================
-   THIẾT KẾ GIAO DIỆN Y TẾ CAO CẤP & KHẢ NĂNG TIẾP CẬN (ACCESSIBILITY)
+   THIẾT KẾ GIAO DIỆN Y TẾ CAO CẤP CHUẨN SWISS MEDICAL & APPLE HEALTH
    ========================================================================== */
 
 :root {
   --brand: #0d9488;
   --brand-dark: #0f766e;
-  --brand-light: #ccfbf1;
-  --emerald-gradient: linear-gradient(135deg, #0d9488 0%, #059669 50%, #10b981 100%);
-  --surface-glass: rgba(255, 255, 255, 0.92);
-  --border-glass: rgba(255, 255, 255, 0.75);
-  --shadow-subtle: 0 4px 20px -2px rgba(13, 148, 136, 0.12), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
-  --shadow-float: 0 14px 34px -4px rgba(13, 148, 136, 0.22), 0 6px 14px -2px rgba(0, 0, 0, 0.06);
+  --brand-deep: #134e4a;
+  --brand-light: #f0fdfa;
+  --brand-border: #ccfbf1;
+  --bg-page: #f8fafc;
+  --surface-card: #ffffff;
+  --border-card: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --shadow-subtle: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 4px 14px -2px rgba(15, 23, 42, 0.03);
+  --shadow-float: 0 10px 25px -4px rgba(13, 148, 136, 0.14), 0 4px 10px -2px rgba(13, 148, 136, 0.06);
 }
 
 /* --- TÙY CHỈNH CỠ CHỮ TOÀN HỆ THỐNG (ACCESSIBILITY SCALING) --- */
@@ -35,55 +39,48 @@ html[data-font-size="xlarge"] {
 
 body {
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
-  background: linear-gradient(175deg, #ecfeff 0%, #f0fdf4 40%, #f8fafc 100%);
+  background-color: var(--bg-page);
   min-height: 100vh;
   color: #0f172a;
   padding-bottom: env(safe-area-inset-bottom);
   -webkit-font-smoothing: antialiased;
 }
 
-/* --- GRADIENT VÀ THẺ KÍNH (GLASSMORPHISM) --- */
+/* --- THẺ CHUẨN SWISS MEDICAL --- */
 .hero-grad {
-  background: var(--emerald-gradient);
+  background: #0f766e;
+  transition: background-color 0.18s ease;
+}
+
+.hero-grad:hover {
+  background: #115e59;
 }
 
 .hero-grad-subtle {
-  background: linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%);
+  background: #f0fdfa;
 }
 
 .card {
-  background: var(--surface-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-glass);
-  border-radius: 1.35rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1.25rem;
   box-shadow: var(--shadow-subtle);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
 }
 
 .card-interactive:active {
   transform: scale(0.985);
 }
 
-/* Thẻ cữ thuốc đang đến giờ uống (hiệu ứng viền phát sáng) */
+/* Thẻ cữ thuốc đang đến giờ uống */
 .card-current-slot {
   border: 2px solid #0d9488 !important;
-  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.18), var(--shadow-float) !important;
-  animation: pulseGlow 3s infinite ease-in-out;
-}
-
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15), var(--shadow-float);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgba(13, 148, 136, 0.35), var(--shadow-float);
-  }
+  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.12), var(--shadow-subtle) !important;
 }
 
 /* Thẻ đã uống xong - Làm tối màu và chìm xuống để người dùng nhận diện đã hoàn thành, không bấm nhầm */
 .card-taken {
-  background: #f1f5f9 !important;
+  background: #f8fafc !important;
   border-color: #cbd5e1 !important;
   opacity: 0.72;
   box-shadow: none !important;
@@ -97,8 +94,8 @@ body {
 
 /* Thẻ bỏ lỡ */
 .card-missed {
-  background: linear-gradient(135deg, rgba(255, 241, 242, 0.95) 0%, rgba(254, 242, 242, 0.85) 100%);
-  border-color: #fca5a5 !important;
+  background: #fff8f8 !important;
+  border-color: #fecdd3 !important;
 }
 
 /* --- NÚT BẤM (BUTTONS & MICRO-INTERACTIONS) --- */
@@ -106,20 +103,20 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 1rem;
+  border-radius: 0.875rem;
   font-weight: 700;
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
   touch-action: manipulation;
+  cursor: pointer;
 }
 
 .btn:hover:not(:disabled) {
-  filter: brightness(1.05);
+  filter: brightness(1.03);
 }
 
 .btn:active:not(:disabled) {
-  transform: scale(0.96);
-  filter: brightness(0.95);
+  transform: scale(0.97);
 }
 
 .btn:disabled {
