@@ -131,8 +131,28 @@ async def send_webpush(subscription_info: dict, payload_data: dict) -> bool:
     return await asyncio.to_thread(_send_webpush_sync, subscription_info, payload_data)
 
 
+async def send_webpush_to_many(subs: list[dict], payload_data: dict) -> int:
+    """Gửi Web Push đồng thời (song song / parallel) tới toàn bộ thiết bị trong cùng 1 tích tắc bằng asyncio.gather."""
+    if not subs:
+        return 0
+
+    async def _send_single(sub_row: dict) -> bool:
+        s_info = {
+            "endpoint": sub_row["endpoint"],
+            "keys": {
+                "p256dh": sub_row.get("p256dh") or (sub_row.get("keys", {}).get("p256dh")),
+                "auth": sub_row.get("auth") or (sub_row.get("keys", {}).get("auth")),
+            },
+        }
+        return await send_webpush(s_info, payload_data)
+
+    results = await asyncio.gather(*[_send_single(s) for s in subs], return_exceptions=True)
+    sent = sum(1 for r in results if r is True)
+    return sent
+
+
 async def send_alert_push_to_admins(title: str, body: str, url: str = "/admin.html") -> int:
-    """Gửi Web Push notification cảnh báo đến toàn bộ thiết bị Bác sĩ đã đăng ký (cô lập, không gửi cho bệnh nhân)."""
+    """Gửi Web Push notification cảnh báo đến toàn bộ thiết bị Bác sĩ đã đăng ký (đồng thời, không đợi nhau)."""
     try:
         admin_rows = await supa.rest_get(
             "profiles",
@@ -159,18 +179,8 @@ async def send_alert_push_to_admins(title: str, body: str, url: str = "/admin.ht
             "url": url,
             "tag": "critical-alert",
         }
-        sent = 0
-        for s_row in subs:
-            sub_info = {
-                "endpoint": s_row["endpoint"],
-                "keys": {
-                    "p256dh": s_row["p256dh"],
-                    "auth": s_row["auth"],
-                },
-            }
-            if await send_webpush(sub_info, payload):
-                sent += 1
-        log.info("Đã gửi Web Push tới %s/%s thiết bị bác sĩ", sent, len(subs))
+        sent = await send_webpush_to_many(subs, payload)
+        log.info("Đã gửi Web Push đồng thời tới %s/%s thiết bị bác sĩ", sent, len(subs))
         return sent
     except Exception as e:
         log.error("Lỗi khi quét thiết bị bác sĩ gửi Web Push: %s", e)
@@ -688,15 +698,8 @@ async def check_and_send_reminders(target_slot: str | None = None, force: bool =
                             "url": "/index.html",
                             "tag": f"med-{p_id}-{slot}",
                         }
-                        push_ok = False
-                        for sub_row in patient_subs:
-                            s_info = {
-                                "endpoint": sub_row["endpoint"],
-                                "keys": {"p256dh": sub_row["p256dh"], "auth": sub_row["auth"]},
-                            }
-                            if await send_webpush(s_info, push_payload):
-                                push_ok = True
-                        if push_ok:
+                        sent_push = await send_webpush_to_many(patient_subs, push_payload)
+                        if sent_push > 0:
                             sent_count += 1
                             try:
                                 await supa.rest_post(
@@ -831,7 +834,7 @@ async def check_and_mark_overdue_missed():
 
 
 async def reminder_worker():
-    """Tác vụ chạy ngầm kiểm tra lịch mỗi 60 giây."""
+    """Tác vụ chạy ngầm kiểm tra lịch chuẩn xác từng phút (chống trôi thời gian khi đông người dùng)."""
     log.info("Khởi động tiến trình chạy ngầm nhắc thuốc tự động...")
     while True:
         try:
@@ -839,5 +842,7 @@ async def reminder_worker():
             await check_and_mark_overdue_missed()
         except Exception as e:
             log.exception("Lỗi trong vòng lặp reminder_worker: %s", e)
-        # Chờ 60 giây trước lần kiểm tra tiếp theo
-        await asyncio.sleep(60)
+        # Căn chỉnh để vòng lặp luôn thức dậy vào đúng đầu phút kế tiếp (:00 giây)
+        now_sec = datetime.now(VN_TZ).second
+        sleep_secs = max(5, 60 - now_sec)
+        await asyncio.sleep(sleep_secs)
