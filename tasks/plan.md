@@ -56,5 +56,21 @@ Dựa trên tiêu chuẩn **Anthropic Frontend Design** & **UI-UX Pro Max (Swiss
 - [ ] Đồng bộ phong cách thẻ bệnh nhân, bảng chỉ số đường huyết và form kê đơn.
 
 ### Giai đoạn 5: Kiểm thử Toàn diện & Xác thực
-- [ ] Kiểm tra tính toàn vẹn của tất cả các luồng bấm, đăng nhập, nạp dữ liệu, đồng bộ offline.
-- [ ] Kiểm tra responsive trên các kích thước màn hình điện thoại (iPhone SE, iPhone 14/15/16, Android, iPad).
+- [x] Kiểm tra tính toàn vẹn của tất cả các luồng bấm, đăng nhập, nạp dữ liệu, đồng bộ offline.
+- [x] Kiểm tra responsive trên các kích thước màn hình điện thoại (iPhone SE, iPhone 14/15/16, Android, iPad).
+
+---
+
+## 4. Giai đoạn 11: Tinh Chỉnh Theo Yêu Cầu Người Dùng Mới Nhất
+- **Nhiệm vụ 1: Thay thế Avatar & Icon PWA hệ thống:**
+  - Chuyển đổi ảnh đại diện 3D y tế y khoa 1024x1024 do người dùng cung cấp thành các định dạng chuẩn PWA: `icon-192.png`, `icon-512.png`, `apple-touch-icon.png`.
+  - Cập nhật ảnh hiển thị tại màn hình đăng nhập người bệnh (`index.html`) và trang quản trị bác sĩ (`admin.html`).
+- **Nhiệm vụ 2: Tối giản màn hình đăng nhập:**
+  - Bỏ gợi ý điền mẫu (placeholder) trong các ô nhập để giao diện gọn gàng, trực quan.
+- **Nhiệm vụ 3: Tinh chỉnh thiết kế thẻ cữ thuốc (Medication Card):**
+  - Khắc phục tình trạng "thừa số 07:00 và nút Bỏ lỡ" được phản ánh ở ảnh 2:
+    - Gộp/tinh gọn badge mốc thời gian và buổi (`07:00 · Sáng`).
+    - Khi thẻ đã rơi vào trạng thái "Bỏ lỡ", ẩn ngay nút bấm "Bỏ lỡ" ở dưới đáy (chỉ giữ lại nút duy nhất "Uống bù ngay"), loại bỏ nút trùng lặp trong khung cảnh báo vàng.
+- **Nhiệm vụ 4: Phỏng vấn & Thống nhất phương án với người dùng:**
+  - Đặt câu hỏi cụ thể để người dùng duyệt phương án trước khi thi công.
+

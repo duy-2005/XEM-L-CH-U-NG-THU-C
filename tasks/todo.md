@@ -62,3 +62,17 @@
   - **Mô tả:** Đồng bộ thiết kế trang quản trị viên/bác sĩ chuẩn phòng khám quốc tế.
 - [x] **Task 19: Kiểm thử thẩm mỹ trên thiết bị di động và kiểm tra tính toàn vẹn chức năng**
   - **Mô tả:** Đã kiểm tra cú pháp node -c toàn bộ file JS, bảo toàn 100% ID DOM, sự kiện và tương tác.
+
+## Giai đoạn 11: Tinh Chỉnh Avatar, Đăng Nhập & Bố Cục Thẻ Cữ Thuốc
+- [x] **Task 20: Phỏng vấn làm rõ 100% yêu cầu về thẻ thuốc và màn hình đăng nhập**
+  - **Mô tả:** Đặt câu hỏi qua `ask_question` và đã chốt 100% với người dùng.
+- [x] **Task 21: Cắt và thay thế bộ Avatar / Icon PWA 192x192, 512x512, apple-touch-icon**
+  - **Mô tả:** Dùng `sips` chuyển đổi ảnh y tế 3D thành bộ icon PNG chuẩn 512x512, 192x192, 180x180 cho web và PWA.
+- [x] **Task 22: Xóa gợi ý placeholder ở màn hình đăng nhập (`frontend/index.html`)**
+  - **Mô tả:** Làm sạch các ô nhập liệu, xóa bỏ chữ mờ "Ví dụ: BN0001" và "••••••", loại bỏ badge checkmark che icon.
+- [x] **Task 23: Tinh giản thẻ thuốc: khắc phục thừa số 07:00, nút Bỏ lỡ và trùng lặp Uống bù (`frontend/app.js`)**
+  - **Mô tả:** Gộp badge thời gian thành `07:00 · Sáng`, ẩn nút "Bỏ lỡ" khi thẻ đã ở trạng thái bỏ lỡ, bỏ nút lặp trong khung cảnh báo vàng, chỉ giữ 1 nút "Uống bù ngay" duy nhất.
+- [x] **Task 24: Kiểm thử hiển thị, xác thực cú pháp và kiểm tra PWA**
+  - **Mô tả:** Đã kiểm tra cú pháp node -c thành công, bump cache Service Worker lên `dtd-shell-v15`.
+
+
