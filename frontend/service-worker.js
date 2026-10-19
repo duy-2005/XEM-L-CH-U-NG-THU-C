@@ -1,4 +1,4 @@
-const CACHE = 'dtd-shell-v18';
+const CACHE = 'dtd-shell-v20';
 const SHELL = [
   '/index.html', '/app.js', '/common.js', '/styles.css', '/manifest.json',
   '/gsap.min.js',

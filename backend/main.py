@@ -233,6 +233,111 @@ async def delete_prescription(request: Request, prescription_id: str, admin: Cur
     return {"ok": True, "message": f"Đã xóa đơn thuốc {drug_name}"}
 
 
+@app.get("/api/admin/patients/{patient_id}/missed-history")
+async def patient_missed_history(
+    patient_id: str,
+    days: int = 60,
+    _: CurrentUser = Depends(require_admin),
+):
+    """Lấy danh sách các lần bỏ lỡ thuốc của 1 bệnh nhân cụ thể theo ngày."""
+    days = max(1, min(days, 365))
+    since = (datetime.now(VN_TZ) - timedelta(days=days)).date().isoformat()
+    rows = await supa.rest_get(
+        "daily_logs",
+        {
+            "select": "id,date,time_slot,notes,created_at,prescriptions(id,drug_name,dosage)",
+            "patient_id": f"eq.{patient_id}",
+            "status": "eq.missed",
+            "date": f"gte.{since}",
+            "order": "date.desc,created_at.desc",
+            "limit": "300",
+        },
+    )
+    return {"patient_id": patient_id, "days": days, "missed": rows}
+
+
+@app.get("/api/admin/stats/overview")
+async def stats_overview(days: int = 30, _: CurrentUser = Depends(require_admin)):
+    """Thống kê tổng quan biểu đồ: ADR, tuân thủ dùng thuốc, số ca bỏ lỡ theo ngày và top bệnh nhân bỏ lỡ."""
+    days = max(1, min(days, 365))
+    since = (datetime.now(VN_TZ) - timedelta(days=days)).date().isoformat()
+
+    # 1. Báo cáo ADR
+    adr_rows = await supa.rest_get(
+        "adr_reports",
+        {"select": "symptoms,severity,is_reviewed", "date": f"gte.{since}", "limit": "5000"},
+    )
+    symptoms = Counter(sym for row in adr_rows for sym in row.get("symptoms", []))
+
+    # 2. Nhật ký dùng thuốc & bỏ lỡ
+    log_rows = await supa.rest_get(
+        "daily_logs",
+        {
+            "select": "id,patient_id,date,time_slot,status,notes,profiles:patient_id(id,full_name,patient_code)",
+            "date": f"gte.{since}",
+            "limit": "10000",
+        },
+    )
+
+    total_doses = len(log_rows)
+    taken_doses = sum(1 for r in log_rows if r.get("status") == "taken")
+    missed_doses = sum(1 for r in log_rows if r.get("status") == "missed")
+    adherence_rate = round((taken_doses / total_doses * 100), 1) if total_doses > 0 else 0
+
+    # Phân bổ theo ngày
+    date_map: dict[str, dict[str, int]] = {}
+    for r in log_rows:
+        d = r.get("date")
+        if not d:
+            continue
+        if d not in date_map:
+            date_map[d] = {"taken": 0, "missed": 0}
+        st = r.get("status")
+        if st in ("taken", "missed"):
+            date_map[d][st] += 1
+
+    timeline = [{"date": d, "taken": v["taken"], "missed": v["missed"]} for d, v in sorted(date_map.items())]
+
+    # Top bệnh nhân bỏ lỡ
+    missed_patient_counts: Counter[str] = Counter()
+    patient_info_map: dict[str, dict] = {}
+    for r in log_rows:
+        if r.get("status") == "missed":
+            pid = r.get("patient_id")
+            if pid:
+                missed_patient_counts[pid] += 1
+                if pid not in patient_info_map and r.get("profiles"):
+                    patient_info_map[pid] = r["profiles"]
+
+    top_missed_patients = []
+    for pid, count in missed_patient_counts.most_common(10):
+        p = patient_info_map.get(pid, {})
+        top_missed_patients.append({
+            "patient_id": pid,
+            "patient_code": p.get("patient_code", "—"),
+            "full_name": p.get("full_name", "—"),
+            "missed_count": count,
+        })
+
+    return {
+        "days": days,
+        "adr": {
+            "total": len(adr_rows),
+            "unreviewed": sum(1 for row in adr_rows if not row.get("is_reviewed")),
+            "by_severity": dict(Counter(row.get("severity") for row in adr_rows)),
+            "by_symptom": dict(symptoms.most_common(10)),
+        },
+        "compliance": {
+            "total_doses": total_doses,
+            "taken_doses": taken_doses,
+            "missed_doses": missed_doses,
+            "adherence_rate": adherence_rate,
+            "timeline": timeline,
+            "top_missed_patients": top_missed_patients,
+        },
+    }
+
+
 @app.get("/api/admin/stats/adr")
 async def adr_stats(days: int = 30, _: CurrentUser = Depends(require_admin)):
     days = max(1, min(days, 365))
@@ -258,7 +363,7 @@ async def alerts(_: CurrentUser = Depends(require_admin)):
     adr = await supa.rest_get(
         "adr_reports",
         {
-            "select": "id,date,symptoms,severity,description,created_at,profiles!patient_id(full_name,patient_code)",
+            "select": "id,date,symptoms,severity,description,created_at,profiles!patient_id(id,full_name,patient_code)",
             "is_reviewed": "eq.false",
             "order": "created_at.desc",
             "limit": "100",
@@ -268,7 +373,7 @@ async def alerts(_: CurrentUser = Depends(require_admin)):
     missed = await supa.rest_get(
         "daily_logs",
         {
-            "select": "id,date,time_slot,notes,prescriptions(drug_name),profiles:patient_id(full_name,patient_code)",
+            "select": "id,date,time_slot,notes,prescriptions(drug_name),profiles:patient_id(id,full_name,patient_code)",
             "status": "eq.missed",
             "date": f"gte.{since}",
             "order": "date.desc",
@@ -276,14 +381,6 @@ async def alerts(_: CurrentUser = Depends(require_admin)):
         },
     )
     return {"adr": adr, "missed": missed}
-
-
-class TestEmailReq(BaseModel):
-    to_email: EmailStr
-
-class TriggerReminderReq(BaseModel):
-    slot: str | None = None
-    force: bool = False
 
 
 class UpdateReminderSettingsReq(BaseModel):
@@ -304,29 +401,6 @@ async def get_reminder_settings(_: CurrentUser = Depends(require_admin)):
 async def update_reminder_settings(body: UpdateReminderSettingsReq, _: CurrentUser = Depends(require_admin)):
     new_slots = save_custom_slot_times(body.slot_times)
     return {"ok": True, "slot_times": new_slots}
-
-
-@app.post("/api/admin/test-email")
-@limiter.limit("5/minute")
-async def test_email(request: Request, body: TestEmailReq, admin: CurrentUser = Depends(require_admin)):
-    s = get_settings()
-    if not s.gmail_user or not s.gmail_app_password:
-        raise HTTPException(400, "Chưa cấu hình GMAIL_USER và GMAIL_APP_PASSWORD trong file .env")
-    ok = await notifier.send_email(
-        str(body.to_email),
-        "[Kiểm tra] Hệ thống Nhắc thuốc Đái tháo đường",
-        f"<p>Xin chào,</p><p>Đây là email kiểm tra kết nối từ hệ thống quản trị lúc {datetime.now(VN_TZ).strftime('%H:%M:%S %d/%m/%Y')}.</p><p>Cấu hình gửi email hoạt động bình thường!</p>",
-        "Email kiểm tra kết nối thành công!",
-    )
-    if not ok:
-        raise HTTPException(502, "Gửi email thất bại. Vui lòng kiểm tra lại GMAIL_USER và GMAIL_APP_PASSWORD.")
-    return {"ok": True, "message": f"Đã gửi email kiểm tra thành công tới {body.to_email}"}
-
-
-@app.post("/api/admin/reminders/trigger")
-async def trigger_reminders(body: TriggerReminderReq, _: CurrentUser = Depends(require_admin)):
-    res = await notifier.check_and_send_reminders(target_slot=body.slot, force=body.force)
-    return res
 
 
 @app.post("/api/admin/push-subscription")

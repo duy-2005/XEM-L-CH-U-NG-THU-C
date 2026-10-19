@@ -104,5 +104,19 @@
   - **Mô tả:** Trong `frontend/admin.js`, lưu trực tiếp `allow_makeup` vào bảng `prescriptions`. Trong `backend/notifier.py`, mở rộng hàm `get_clean_instruction` để loại bỏ thẻ `[NO_MAKEUP]` ra khỏi nội dung email gửi bệnh nhân.
 - [x] **Task 36: Kiểm thử cú pháp toàn diện, bump PWA cache lên v18**
   - **Mô tả:** Chạy `py_compile` và `node -c` xác thực 100% không lỗi cú pháp; bump cache Service Worker lên `dtd-shell-v18`.
-
-
+## Giai đoạn 15: Tinh Giản Cài Đặt Chung & Loại Bỏ Hoàn Toàn Tính Năng Gmail/Nhắc Thủ Công Dư Thừa
+- [x] **Task 37: Tái cấu trúc giao diện Admin sang "Cài đặt chung" (`frontend/admin.html`)**
+  - **Mô tả:** Đổi tab sidebar từ "Lịch nhắc" sang "Cài đặt chung" kèm icon bánh răng thiết lập. Loại bỏ 3 khối dư thừa: "Trạng thái cấu hình Gmail SMTP", "Thử nghiệm gửi email", và "Kích hoạt gửi nhắc thủ công". Đưa cài đặt giờ nhắc mặc định vào card "Cài đặt chung" thanh lịch, cân đối.
+- [x] **Task 38: Dọn dẹp logic giao diện và các event listener (`frontend/admin.js`)**
+  - **Mô tả:** Xóa bỏ hoàn toàn các hàm `onTestEmail()`, `onTriggerReminders()` và các event listener liên quan. Tối ưu hàm `loadReminderSettings()` chỉ tập trung hiển thị và lưu cấu hình khung giờ.
+- [x] **Task 39: Xóa bỏ các API endpoint và Pydantic schema mồ côi (`backend/main.py`)**
+  - **Mô tả:** Xóa bỏ `TestEmailReq`, `TriggerReminderReq` cùng hai endpoints `@app.post("/api/admin/test-email")` và `@app.post("/api/admin/reminders/trigger")`.
+## Giai đoạn 16: Quản Lý Lịch Sử Bỏ Lỡ Thuốc Từng Bệnh Nhân & Biểu Đồ Thống Kê Giám Sát Tuân Thủ
+- [x] **Task 41: Bổ sung endpoint backend lấy lịch sử bỏ lỡ theo bệnh nhân & thống kê tổng quan (`backend/main.py`)**
+  - **Mô tả:** Thêm `GET /api/admin/patients/{patient_id}/missed-history` lọc danh sách bỏ lỡ theo ngày và đơn thuốc. Thêm `GET /api/admin/stats/overview` tính toán tỷ lệ tuân thủ, chuỗi biến thiên theo ngày, top bệnh nhân bỏ lỡ và thống kê ADR.
+- [x] **Task 42: Tích hợp hộp thoại và xem lịch sử bỏ lỡ thuốc từng bệnh nhân (`frontend/admin.html` & `frontend/admin.js`)**
+  - **Mô tả:** Thêm modal `#dlg-missed-history` phân nhóm theo ngày với lý do chi tiết; thêm nút "📋 Lịch sử bỏ lỡ" ở mỗi hàng bảng bệnh nhân; thêm khối "Lịch sử bỏ lỡ thuốc gần đây" trong modal chi tiết bệnh nhân; cho phép click vào tên bệnh nhân từ màn hình cảnh báo để mở ngay lịch sử.
+- [x] **Task 43: Nâng cấp màn hình Thống kê với hệ thống Biểu đồ Chart.js trực quan (`frontend/admin.html` & `frontend/admin.js`)**
+  - **Mô tả:** Nhúng thư viện Chart.js; thiết kế 4 thẻ KPI tổng quan; xây dựng 5 biểu đồ (Tỷ lệ tuân thủ, Biến thiên theo ngày, Top bệnh nhân bỏ lỡ nhiều nhất, Mức độ ADR, Tần suất triệu chứng ADR) với tương tác click trực tiếp vào bệnh nhân.
+- [x] **Task 44: Bump PWA cache lên v20 và kiểm tra cú pháp toàn hệ thống**
+  - **Mô tả:** Bump Service Worker lên `dtd-shell-v20`, cập nhật asset tags `?v=20`, kiểm tra cú pháp Python và JS đạt 100% không lỗi.

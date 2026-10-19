@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/styles.css?v=18">
+  <link rel="stylesheet" href="/styles.css?v=20">
 </head>
 <body class="text-slate-800 bg-slate-50">
   <div id="toast" role="status" aria-live="polite" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] hidden-view px-5 py-3.5 rounded-2xl text-white font-semibold shadow-2xl backdrop-blur-md"></div>
@@ -114,8 +114,11 @@
           <span>Thống kê</span>
         </button>
         <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2.5 hover:bg-white/10 text-xs lg:text-sm font-semibold rounded-xl shrink-0 flex items-center gap-2.5 transition" data-view="reminders" aria-selected="false">
-          <svg class="w-4 h-4 text-teal-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <span>Lịch nhắc</span>
+          <svg class="w-4 h-4 text-teal-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          <span>Cài đặt chung</span>
         </button>
         <button class="nav-btn btn whitespace-nowrap text-left px-3.5 py-2.5 hover:bg-white/10 text-xs lg:text-sm font-semibold rounded-xl shrink-0 flex items-center gap-2.5 transition" data-view="approvals" aria-selected="false">
           <svg class="w-4 h-4 text-teal-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -149,8 +152,12 @@
             <ul id="adr-list" class="space-y-3"></ul>
           </div>
           <div class="card p-5">
-            <h2 class="font-bold text-lg mb-3">Thuốc bỏ lỡ (3 ngày gần nhất)</h2>
-            <ul id="missed-list" class="divide-y divide-slate-100 text-sm"></ul>
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="font-bold text-lg">Thuốc bỏ lỡ (3 ngày gần nhất)</h2>
+              <span id="missed-count-badge" class="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200"></span>
+            </div>
+            <input id="missed-search" type="search" placeholder="🔍 Lọc theo tên hoặc mã bệnh nhân…" class="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 mb-3 bg-white">
+            <ul id="missed-list" class="divide-y divide-slate-100 text-sm max-h-[460px] overflow-y-auto pr-1"></ul>
           </div>
         </div>
       </section>
@@ -168,87 +175,144 @@
         <div class="card overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 text-left font-bold">
-              <tr><th class="p-3">Mã BN</th><th class="p-3">Họ tên</th><th class="p-3">Điện thoại</th><th class="p-3">Trạng thái</th><th class="p-3"></th></tr>
+              <tr>
+                <th class="p-3">Mã BN</th>
+                <th class="p-3">Họ tên</th>
+                <th class="p-3">Điện thoại</th>
+                <th class="p-3">Trạng thái</th>
+                <th class="p-3 text-right">Thao tác</th>
+              </tr>
             </thead>
             <tbody id="patient-rows" class="divide-y divide-slate-100"></tbody>
           </table>
         </div>
       </section>
 
-      <!-- THỐNG KÊ -->
+      <!-- THỐNG KÊ & GIÁM SÁT TUÂN THỦ -->
       <section id="v-stats" class="hidden-view space-y-6" aria-labelledby="h-stats">
-        <div class="flex items-center justify-between">
-          <h1 id="h-stats" class="text-2xl font-extrabold text-teal-900">Thống kê ADR</h1>
-          <label class="text-sm">Khoảng thời gian
-            <select id="stats-days" class="ml-2 border border-slate-300 rounded-xl px-3 py-2 bg-white">
-              <option value="7">7 ngày</option><option value="30" selected>30 ngày</option><option value="90">90 ngày</option><option value="365">1 năm</option>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 id="h-stats" class="text-2xl font-extrabold text-teal-900">Thống kê & Giám sát tuân thủ</h1>
+            <p class="text-slate-500 text-xs mt-0.5">Biểu đồ trực quan theo dõi tuân thủ dùng thuốc, số ca bỏ lỡ và phản ứng phụ ADR</p>
+          </div>
+          <label class="text-xs font-semibold text-slate-700 flex items-center gap-2">
+            <span>Khoảng thời gian:</span>
+            <select id="stats-days" class="border border-slate-300 rounded-xl px-3 py-2 bg-white text-sm font-semibold shadow-xs">
+              <option value="7">7 ngày qua</option>
+              <option value="30" selected>30 ngày qua</option>
+              <option value="90">90 ngày qua</option>
+              <option value="365">1 năm qua</option>
             </select>
           </label>
         </div>
-        <div id="stats-body" class="grid md:grid-cols-3 gap-6"></div>
-      </section>
 
-      <!-- LỊCH & EMAIL NHẮC THUỐC -->
-      <section id="v-reminders" class="hidden-view space-y-6" aria-labelledby="h-reminders">
-        <div class="flex items-center justify-between">
-          <h1 id="h-reminders" class="text-2xl font-extrabold text-teal-900">Lịch & Email Nhắc Thuốc Tự Động</h1>
-          <button id="refresh-reminders" class="btn bg-white border border-slate-300 px-4 py-2 text-sm">↻ Làm mới</button>
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="card p-4 border border-teal-100 bg-teal-50/40">
+            <p class="text-xs text-teal-800 font-semibold">Tỷ lệ tuân thủ</p>
+            <p id="kpi-adherence" class="text-3xl font-extrabold text-teal-900 mt-1">—</p>
+            <p id="kpi-doses-sub" class="text-[11px] text-teal-700 mt-1">0 / 0 cữ đã dùng</p>
+          </div>
+          <div class="card p-4 border border-rose-100 bg-rose-50/40">
+            <p class="text-xs text-rose-800 font-semibold">Tổng cữ bỏ lỡ</p>
+            <p id="kpi-missed" class="text-3xl font-extrabold text-rose-700 mt-1">—</p>
+            <p id="kpi-missed-sub" class="text-[11px] text-rose-600 mt-1">Cần theo dõi sát</p>
+          </div>
+          <div class="card p-4 border border-amber-100 bg-amber-50/40">
+            <p class="text-xs text-amber-800 font-semibold">Bệnh nhân bỏ lỡ nhiều nhất</p>
+            <p id="kpi-top-patient" class="text-base font-extrabold text-amber-900 mt-1.5 truncate">—</p>
+            <p id="kpi-top-patient-sub" class="text-[11px] text-amber-700 mt-0.5">—</p>
+          </div>
+          <div class="card p-4 border border-slate-200 bg-slate-50/60">
+            <p class="text-xs text-slate-600 font-semibold">Báo cáo ADR</p>
+            <p id="kpi-adr" class="text-3xl font-extrabold text-slate-800 mt-1">—</p>
+            <p id="kpi-adr-sub" class="text-[11px] text-rose-600 mt-1 font-semibold">0 chưa xem</p>
+          </div>
         </div>
 
-        <div class="grid lg:grid-cols-2 gap-6">
-          <!-- Trạng thái SMTP & Khung giờ -->
-          <div class="card p-5 space-y-4">
-            <h2 class="font-bold text-lg text-teal-800">Trạng thái cấu hình Gmail SMTP</h2>
-            <div id="smtp-status-box" class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm">
-              Đang tải thông tin cấu hình...
-            </div>
-
-            <form id="slot-times-form" class="space-y-3 pt-2" novalidate>
-              <div class="flex items-center justify-between">
-                <h3 class="font-bold text-base text-teal-800">Cài đặt khung giờ nhắc (Giờ VN)</h3>
-                <button id="save-slots-btn" type="submit" class="btn bg-teal-700 hover:bg-teal-800 text-white text-xs px-3.5 py-1.5 font-bold shadow-xs transition-all">Lưu khung giờ</button>
-              </div>
-              <p class="text-xs text-slate-500">Bạn có thể tự chọn giờ cho từng buổi (Sáng, Trưa, Chiều, Tối...). Hệ thống sẽ lưu và áp dụng ngay lập tức:</p>
-              <div id="slot-times-inputs" class="space-y-2.5 pt-1"></div>
-            </form>
+        <!-- Khối biểu đồ 1: Tuân thủ & Bỏ lỡ thuốc -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-teal-600"></span>
+            <h2 class="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Kiểm soát tuân thủ & cữ thuốc bỏ lỡ</h2>
           </div>
-
-          <!-- Kiểm tra & Kích hoạt thủ công -->
-          <div class="space-y-6">
-            <!-- Test gửi email -->
-            <form id="test-email-form" class="card p-5 space-y-3" novalidate>
-              <h2 class="font-bold text-lg text-teal-800">Thử nghiệm gửi email</h2>
-              <p class="text-xs text-slate-500">Gửi 1 email kiểm tra để chắc chắn cấu hình Gmail hoạt động tốt:</p>
-              <div>
-                <label for="test-email-input" class="block text-sm font-semibold mb-1">Email nhận thử</label>
-                <input id="test-email-input" type="email" required placeholder="nhap_email_cua_ban@gmail.com" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm">
+          <div class="grid lg:grid-cols-3 gap-5">
+            <!-- Doughnut: Tỷ lệ tuân thủ -->
+            <div class="card p-5 flex flex-col space-y-3">
+              <h3 class="font-bold text-sm text-slate-800">Tỷ lệ Đã uống vs Bỏ lỡ</h3>
+              <div class="relative flex-1 min-h-[220px] max-h-[260px] flex items-center justify-center">
+                <canvas id="chart-compliance-ratio"></canvas>
               </div>
-              <p id="test-email-msg" class="text-sm font-medium hidden-view"></p>
-              <button id="test-email-btn" type="submit" class="btn bg-teal-700 hover:bg-teal-800 text-white px-4 py-2.5 text-sm w-full font-bold shadow-xs transition-all">Gửi email thử nghiệm</button>
-            </form>
-
-            <!-- Kích hoạt nhắc thuốc ngay lập tức -->
-            <div class="card p-5 space-y-3">
-              <h2 class="font-bold text-lg text-teal-800">Kích hoạt gửi nhắc thủ công</h2>
-              <p class="text-xs text-slate-500">Gửi nhắc ngay bây giờ cho bệnh nhân có đơn thuốc mà chưa bấm "Đã uống":</p>
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label for="manual-slot-select" class="block text-xs font-semibold mb-1">Khung giờ</label>
-                  <select id="manual-slot-select" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white">
-                    <option value="">Tất cả khung giờ</option>
-                    <option value="sang">Buổi Sáng</option>
-                    <option value="trua">Buổi Trưa</option>
-                    <option value="chieu">Buổi Chiều</option>
-                    <option value="toi">Buổi Tối</option>
-                    <option value="truoc_ngu">Trước Khi Ngủ</option>
-                  </select>
-                </div>
-                <div class="flex items-end">
-                  <button id="trigger-reminders-btn" type="button" class="btn bg-teal-700 hover:bg-teal-800 text-white px-4 py-2.5 text-sm w-full font-bold shadow-xs transition-all">Gửi nhắc ngay</button>
-                </div>
-              </div>
-              <div id="trigger-result" class="text-xs text-slate-600 p-3 bg-slate-50 rounded-xl hidden-view"></div>
             </div>
+            <!-- Line/Bar: Biến thiên theo ngày -->
+            <div class="card p-5 flex flex-col space-y-3 lg:col-span-2">
+              <h3 class="font-bold text-sm text-slate-800">Biến thiên uống thuốc & bỏ lỡ theo ngày</h3>
+              <div class="relative flex-1 min-h-[220px] max-h-[260px]">
+                <canvas id="chart-missed-timeline"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Khối biểu đồ 2: Top bệnh nhân bỏ lỡ & Phản ứng phụ ADR -->
+        <div class="space-y-3 pt-2">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+            <h2 class="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Top bỏ lỡ & Phản ứng phụ ADR</h2>
+          </div>
+          <div class="grid lg:grid-cols-3 gap-5">
+            <!-- Horizontal Bar: Top bệnh nhân bỏ lỡ -->
+            <div class="card p-5 flex flex-col space-y-3">
+              <div>
+                <h3 class="font-bold text-sm text-slate-800">Top Bệnh nhân bỏ lỡ nhiều nhất</h3>
+                <p class="text-[11px] text-slate-500 mt-0.5">Bấm vào thanh bệnh nhân để xem chi tiết</p>
+              </div>
+              <div class="relative flex-1 min-h-[220px] max-h-[260px]">
+                <canvas id="chart-top-missed"></canvas>
+              </div>
+            </div>
+            <!-- Doughnut: Mức độ ADR -->
+            <div class="card p-5 flex flex-col space-y-3">
+              <h3 class="font-bold text-sm text-slate-800">Phân bố ADR theo mức độ</h3>
+              <div class="relative flex-1 min-h-[220px] max-h-[260px] flex items-center justify-center">
+                <canvas id="chart-adr-severity"></canvas>
+              </div>
+            </div>
+            <!-- Horizontal Bar: Triệu chứng ADR -->
+            <div class="card p-5 flex flex-col space-y-3">
+              <h3 class="font-bold text-sm text-slate-800">Tần suất triệu chứng ADR</h3>
+              <div class="relative flex-1 min-h-[220px] max-h-[260px]">
+                <canvas id="chart-adr-symptoms"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CÀI ĐẶT CHUNG -->
+      <section id="v-reminders" class="hidden-view space-y-6" aria-labelledby="h-reminders">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 id="h-reminders" class="text-2xl font-extrabold text-teal-900">Cài đặt chung</h1>
+            <p class="text-slate-500 text-sm mt-0.5">Thiết lập khung giờ nhắc thuốc mặc định cho toàn hệ thống</p>
+          </div>
+          <button id="refresh-reminders" class="btn bg-white border border-slate-300 px-4 py-2 text-sm font-semibold rounded-xl shadow-xs hover:bg-slate-50">↻ Làm mới</button>
+        </div>
+
+        <div class="max-w-2xl">
+          <div class="card p-6 space-y-4 shadow-sm border border-slate-200">
+            <form id="slot-times-form" class="space-y-4" novalidate>
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h2 class="font-extrabold text-lg text-slate-800">Khung giờ nhắc thuốc mặc định (Giờ VN)</h2>
+                  <p class="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                    Hệ thống sẽ tự động nhắc thuốc theo các khung giờ này (hoặc theo giờ cụ thể được đặt riêng trong từng đơn thuốc):
+                  </p>
+                </div>
+                <button id="save-slots-btn" type="submit" class="btn bg-teal-700 hover:bg-teal-800 text-white text-xs px-4 py-2 font-bold shadow-xs transition-all shrink-0 rounded-xl">💾 Lưu khung giờ</button>
+              </div>
+              <div id="slot-times-inputs" class="space-y-2.5 pt-2"></div>
+            </form>
           </div>
         </div>
       </section>
@@ -316,6 +380,20 @@
       </div>
 
       <div id="pd-adherence" class="grid grid-cols-3 gap-3 text-center"></div>
+
+      <!-- Lịch sử bỏ lỡ thuốc gần đây -->
+      <div id="pd-missed-box" class="border border-rose-100 rounded-2xl p-4 bg-rose-50/40 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <h3 class="font-bold text-sm text-slate-800 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+            Lịch sử bỏ lỡ thuốc gần đây
+          </h3>
+          <button id="pd-btn-all-missed" type="button" class="btn text-xs font-bold text-rose-700 bg-white hover:bg-rose-100/70 border border-rose-200 px-3 py-1 rounded-xl shadow-2xs transition">
+            Xem toàn bộ lịch sử →
+          </button>
+        </div>
+        <ul id="pd-missed-list" class="space-y-2 text-xs divide-y divide-rose-100/60 max-h-44 overflow-y-auto pr-1"></ul>
+      </div>
 
       <div>
         <h3 class="font-bold mb-2">Đơn thuốc</h3>
@@ -390,8 +468,40 @@
     </div>
   </dialog>
 
+  <!-- HỘP THOẠI LỊCH SỬ BỎ LỠ THUỐC CỦA BỆNH NHÂN -->
+  <dialog id="dlg-missed-history" class="card p-0 w-[min(46rem,94vw)] max-h-[92vh] backdrop:bg-slate-900/50">
+    <div class="p-6 space-y-4 flex flex-col max-h-[90vh]">
+      <div class="flex items-start justify-between gap-3 border-b border-slate-200/80 pb-4 shrink-0">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">Lịch sử bỏ lỡ thuốc</span>
+            <h2 id="mh-title" class="text-xl font-extrabold text-slate-800"></h2>
+          </div>
+          <p id="mh-sub" class="text-xs text-slate-500 mt-1"></p>
+        </div>
+        <button id="mh-close" class="btn px-3 py-1.5 border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 rounded-xl" aria-label="Đóng">✕</button>
+      </div>
+
+      <div class="flex items-center justify-between gap-3 shrink-0 flex-wrap">
+        <div class="flex items-center gap-2">
+          <label for="mh-days" class="text-xs font-semibold text-slate-600">Khoảng thời gian:</label>
+          <select id="mh-days" class="border border-slate-300 rounded-xl px-3 py-1.5 text-xs bg-white font-medium">
+            <option value="7">7 ngày gần nhất</option>
+            <option value="30" selected>30 ngày gần nhất</option>
+            <option value="90">90 ngày gần nhất</option>
+            <option value="365">Toàn bộ lịch sử</option>
+          </select>
+        </div>
+        <div id="mh-summary-badge" class="text-xs font-bold text-rose-700 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200"></div>
+      </div>
+
+      <div id="mh-list" class="space-y-3 overflow-y-auto pr-1 flex-1"></div>
+    </div>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/common.js?v=18"></script>
-  <script src="/admin.js?v=18"></script>
+  <script src="/common.js?v=20"></script>
+  <script src="/admin.js?v=20"></script>
 </body>
 </html>

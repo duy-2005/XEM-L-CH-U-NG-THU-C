@@ -93,6 +93,34 @@ Dựa trên tiêu chuẩn **Anthropic Frontend Design** & **UI-UX Pro Max (Swiss
   - Lưu trực tiếp giá trị `allow_makeup` vào cột bảng `prescriptions` trong cơ sở dữ liệu khi kê đơn.
   - Bump phiên bản Service Worker lên `dtd-shell-v18` và cập nhật thẻ asset version `?v=18`.
 - [x] Đã hoàn thành 100%
+---
 
+## 8. Giai đoạn 15: Tinh Giản Cài Đặt Chung & Loại Bỏ Hoàn Toàn Tính Năng Gmail/Nhắc Thủ Công Dư Thừa
+- **Bối cảnh & Yêu cầu:** 
+  1. Người dùng yêu cầu loại bỏ 3 khối tính năng không còn phù hợp trên giao diện Admin: "Trạng thái cấu hình Gmail SMTP", "Thử nghiệm gửi email", và "Kích hoạt gửi nhắc thủ công".
+  2. Gom tính năng "Cài đặt khung giờ nhắc" thành tab chuyên biệt "Cài đặt chung" (General Settings).
+  3. Dọn dẹp triệt để mã nguồn backend dư thừa liên quan đến các tính năng đã bỏ.
+- **Giải pháp & Thực thi:**
+  - **Giao diện (`frontend/admin.html`):** Đổi tên tab menu từ "Lịch nhắc" sang "Cài đặt chung" kèm icon bánh răng thiết lập. Loại bỏ bố cục 2 cột chứa các ô trạng thái Gmail, form gửi thử email và khối kích hoạt thủ công. Thiết kế lại phần "Khung giờ nhắc thuốc mặc định (Giờ VN)" trong card căn giữa sang trọng, tinh tế.
+  - **Frontend Logic (`frontend/admin.js`):** Xóa các event listener và handler `onTestEmail()`, `onTriggerReminders()`. Đơn giản hóa `loadReminderSettings()` chỉ tập trung render các input chỉnh giờ.
+  - **Backend API (`backend/main.py`):** Xóa bỏ các schema `TestEmailReq`, `TriggerReminderReq` cùng hai endpoints `@app.post("/api/admin/test-email")` và `@app.post("/api/admin/reminders/trigger")`.
+---
 
-
+## 9. Giai đoạn 16: Quản Lý Lịch Sử Bỏ Lỡ Thuốc Từng Bệnh Nhân & Biểu Đồ Thống Kê Giám Sát Tuân Thủ
+- **Bối cảnh & Yêu cầu:**
+  1. Khi nhiều bệnh nhân bỏ lỡ thuốc trong ngày, danh sách cảnh báo bị dồn ứ, bác sĩ khó kiểm soát riêng rẽ từng bệnh nhân đã bỏ lỡ những ngày nào. Yêu cầu thêm ô lịch sử bỏ lỡ theo ngày vào hồ sơ bệnh nhân.
+  2. Nâng cấp màn hình thống kê (ảnh 3) với hệ thống biểu đồ trực quan (Chart.js) giúp bác sĩ nắm bắt ngay tỷ lệ tuân thủ, xu hướng theo ngày, top bệnh nhân bỏ lỡ và phản ứng phụ ADR.
+- **Giải pháp & Thực thi:**
+  - **Backend (`backend/main.py`):**
+    - Endpoint `GET /api/admin/patients/{patient_id}/missed-history`: Lấy toàn bộ nhật ký bỏ lỡ của bệnh nhân kèm thông tin đơn thuốc và lý do.
+    - Endpoint `GET /api/admin/stats/overview`: Tính toán các chỉ số tuân thủ, chuỗi thời gian biến thiên theo ngày, danh sách top bệnh nhân bỏ lỡ nhiều nhất và thống kê ADR.
+  - **Frontend Giao diện (`frontend/admin.html`):**
+    - Thêm modal `#dlg-missed-history` có bộ lọc thời gian và phân nhóm thẻ theo ngày.
+    - Thêm nút "📋 Lịch sử bỏ lỡ" trong bảng bệnh nhân và khối "Lịch sử bỏ lỡ gần đây" trong modal chi tiết bệnh nhân.
+    - Thiết kế lại trang `#v-stats` với 4 thẻ KPI và 5 canvas biểu đồ Chart.js (Doughnut tuân thủ, Bar biến thiên theo ngày, Horizontal Bar top bỏ lỡ, Doughnut mức độ ADR, Horizontal Bar triệu chứng).
+  - **Frontend Logic (`frontend/admin.js`):**
+    - Viết hàm `openMissedHistory(patient)` nhóm cữ bỏ lỡ theo ngày kèm lý do chi tiết.
+    - Viết hàm `renderMissedList()` có ô tìm kiếm lọc nhanh bệnh nhân và click vào tên bệnh nhân để mở ngay lịch sử.
+    - Viết hàm `loadStats()` khởi tạo các biểu đồ Chart.js tương tác, click vào thanh bệnh nhân mở ngay hồ sơ.
+  - **Cache & Kiểm thử:** Bump Service Worker lên `dtd-shell-v20`, tài nguyên `?v=20`, kiểm tra cú pháp Python và JS đạt 100% không lỗi.
+- [x] Đã hoàn thành 100%

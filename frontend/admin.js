@@ -187,11 +187,13 @@ function bindEvents() {
   $('np-cancel').addEventListener('click', () => $('dlg-add-patient').close());
   $('add-patient-form').addEventListener('submit', onAddPatient);
   $('pd-close').addEventListener('click', () => $('dlg-patient').close());
+  if ($('pd-btn-all-missed')) $('pd-btn-all-missed').addEventListener('click', () => { if (currentPatient) openMissedHistory(currentPatient); });
+  if ($('mh-close')) $('mh-close').addEventListener('click', () => $('dlg-missed-history').close());
+  if ($('mh-days')) $('mh-days').addEventListener('change', () => { if (currentMissedPatient) openMissedHistory(currentMissedPatient, $('mh-days').value); });
+  if ($('missed-search')) $('missed-search').addEventListener('input', renderMissedList);
   $('presc-form').addEventListener('submit', onAddPrescription);
   $('refresh-reminders').addEventListener('click', () => loadReminderSettings());
   $('slot-times-form').addEventListener('submit', onSaveSlotTimes);
-  $('test-email-form').addEventListener('submit', onTestEmail);
-  $('trigger-reminders-btn').addEventListener('click', onTriggerReminders);
   if ($('btn-push-toggle')) $('btn-push-toggle').addEventListener('click', onTogglePush);
   if ($('btn-test-push-admin')) $('btn-test-push-admin').addEventListener('click', onTestPushAdmin);
 }
@@ -457,6 +459,40 @@ async function onGoogleLogin() {
 /* ---------------------------------------------------------------- cảnh báo */
 function who(p) { return p ? `${p.full_name || '—'} (${p.patient_code || '—'})` : '—'; }
 
+let alertsMissedData = [];
+
+function renderMissedList() {
+  const q = ($('missed-search')?.value || '').trim().toLowerCase();
+  const badge = $('missed-count-badge');
+  const filtered = alertsMissedData.filter((m) => {
+    if (!q) return true;
+    const name = (m.profiles?.full_name || '').toLowerCase();
+    const code = (m.profiles?.patient_code || '').toLowerCase();
+    const drug = (m.prescriptions?.drug_name || '').toLowerCase();
+    return name.includes(q) || code.includes(q) || drug.includes(q);
+  });
+  if (badge) badge.textContent = `${filtered.length} cữ bỏ lỡ`;
+  const ul = $('missed-list');
+  ul.replaceChildren();
+  if (!filtered.length) {
+    ul.append(h('li', { class: 'py-6 text-center text-slate-400 text-xs' }, q ? 'Không tìm thấy cữ thuốc bỏ lỡ phù hợp.' : 'Không có thuốc bỏ lỡ. 👍'));
+    return;
+  }
+  for (const m of filtered) {
+    ul.append(h('li', { class: 'py-2.5 border-b border-slate-100 last:border-0' },
+      h('div', { class: 'flex justify-between items-start gap-2' },
+        h('button', {
+          type: 'button',
+          title: 'Bấm để mở lịch sử bỏ lỡ của bệnh nhân này',
+          class: 'text-left text-teal-800 hover:text-rose-700 font-semibold hover:underline cursor-pointer transition',
+          onclick: () => m.profiles && openMissedHistory(m.profiles)
+        }, h('strong', { class: 'text-slate-800 font-bold' }, who(m.profiles)), ' – ', m.prescriptions ? m.prescriptions.drug_name : '—'),
+        h('span', { class: 'text-slate-500 shrink-0 text-xs font-mono font-medium' }, `${fmtDate(m.date)} · ${SLOTS[m.time_slot] || ''}`)),
+      m.notes && h('p', { class: 'text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-2.5 py-1.5 mt-1 font-medium' },
+        h('strong', {}, '💬 Lý do: '), m.notes)));
+  }
+}
+
 async function loadAlerts(silent) {
   let data;
   try { data = await api('/api/admin/alerts'); }
@@ -484,17 +520,8 @@ async function loadAlerts(silent) {
   }
   if (severe && !silent) toast(`Có ${severe} báo cáo ADR NẶNG chưa xem`, 'error');
 
-  const ul = $('missed-list');
-  ul.replaceChildren();
-  if (!data.missed.length) ul.append(h('li', { class: 'py-2 text-slate-500' }, 'Không có thuốc bỏ lỡ.'));
-  for (const m of data.missed) {
-    ul.append(h('li', { class: 'py-2.5 border-b border-slate-100 last:border-0' },
-      h('div', { class: 'flex justify-between gap-2' },
-        h('span', {}, h('strong', {}, who(m.profiles)), ' – ', m.prescriptions ? m.prescriptions.drug_name : '—'),
-        h('span', { class: 'text-slate-500 shrink-0 text-xs' }, `${fmtDate(m.date)} · ${SLOTS[m.time_slot] || ''}`)),
-      m.notes && h('p', { class: 'text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-2.5 py-1.5 mt-1 font-medium' },
-        h('strong', {}, '💬 Lý do bệnh nhân báo: '), m.notes)));
-  }
+  alertsMissedData = data.missed || [];
+  renderMissedList();
 }
 
 async function markReviewed(id, btn) {
@@ -506,6 +533,104 @@ async function markReviewed(id, btn) {
 }
 
 /* ---------------------------------------------------------------- bệnh nhân */
+let currentMissedPatient = null;
+
+async function openMissedHistory(patient, days) {
+  if (!patient) return;
+  // Tìm profile đầy đủ nếu có
+  const pid = patient.id || patient.patient_id;
+  const fullPatient = (patients || []).find((p) => p.id === pid) || patient;
+  currentMissedPatient = fullPatient;
+
+  const dlg = $('dlg-missed-history');
+  if (!dlg) return;
+
+  const daysSelect = $('mh-days');
+  const d = days || (daysSelect ? daysSelect.value : '30');
+  if (daysSelect && days) daysSelect.value = String(days);
+
+  $('mh-title').textContent = `${fullPatient.full_name || 'Bệnh nhân'} (${fullPatient.patient_code || '—'})`;
+  $('mh-sub').textContent = [fullPatient.phone, fullPatient.email].filter(Boolean).join(' · ') || 'Không có số điện thoại / email';
+
+  const badge = $('mh-summary-badge');
+  badge.textContent = 'Đang tải…';
+  const list = $('mh-list');
+  list.replaceChildren(h('p', { class: 'text-center py-8 text-slate-400 text-xs' }, 'Đang tải dữ liệu lịch sử bỏ lỡ thuốc…'));
+
+  dlg.showModal();
+
+  try {
+    const res = await api(`/api/admin/patients/${encodeURIComponent(pid)}/missed-history?days=${d}`);
+    const missed = res.missed || [];
+    badge.textContent = `${missed.length} cữ thuốc bỏ lỡ`;
+    badge.className = missed.length > 0
+      ? 'text-xs font-bold text-rose-700 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200'
+      : 'text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200';
+
+    if (!missed.length) {
+      list.replaceChildren(
+        h('div', { class: 'text-center py-12 px-4 space-y-2' },
+          h('div', { class: 'w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto text-xl font-bold border border-emerald-200' }, '✓'),
+          h('p', { class: 'text-sm font-bold text-slate-800' }, 'Không có cữ thuốc nào bị bỏ lỡ!'),
+          h('p', { class: 'text-xs text-slate-500' }, `Bệnh nhân tuân thủ phác đồ điều trị rất tốt trong ${d} ngày qua.`)
+        )
+      );
+      return;
+    }
+
+    // Nhóm theo ngày (date)
+    const grouped = {};
+    for (const m of missed) {
+      const dateKey = m.date || 'Không rõ ngày';
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(m);
+    }
+
+    list.replaceChildren();
+    for (const [dateStr, items] of Object.entries(grouped)) {
+      list.append(
+        h('div', { class: 'card p-4 border border-slate-200 space-y-2.5 bg-white shadow-2xs' },
+          h('div', { class: 'flex items-center justify-between border-b border-slate-100 pb-2' },
+            h('div', { class: 'flex items-center gap-2' },
+              h('span', { class: 'w-2 h-2 rounded-full bg-rose-500' }),
+              h('h3', { class: 'font-extrabold text-sm text-slate-800' }, fmtDate(dateStr))
+            ),
+            h('span', { class: 'text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200' },
+              `${items.length} cữ bỏ lỡ`
+            )
+          ),
+          h('div', { class: 'space-y-2' },
+            items.map((it) =>
+              h('div', { class: 'p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5' },
+                h('div', { class: 'flex items-center justify-between flex-wrap gap-2' },
+                  h('div', { class: 'flex items-center gap-2' },
+                    h('span', { class: 'text-xs font-bold px-2 py-0.5 rounded-lg bg-teal-100 text-teal-800 font-mono' },
+                      SLOTS[it.time_slot] || it.time_slot
+                    ),
+                    h('span', { class: 'text-sm font-bold text-slate-800' },
+                      it.prescriptions?.drug_name || 'Thuốc'
+                    ),
+                    it.prescriptions?.dosage && h('span', { class: 'text-xs text-slate-500' }, `(${it.prescriptions.dosage})`)
+                  ),
+                  it.created_at && h('span', { class: 'text-[11px] text-slate-400 font-mono' },
+                    new Date(it.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                  )
+                ),
+                it.notes && h('p', { class: 'text-xs text-rose-700 bg-rose-50/90 border border-rose-100 rounded-lg px-2.5 py-1.5 font-medium' },
+                  h('strong', {}, '💬 Lý do: '), it.notes
+                )
+              )
+            )
+          )
+        )
+      );
+    }
+  } catch (err) {
+    badge.textContent = 'Lỗi';
+    list.replaceChildren(h('p', { class: 'text-center py-6 text-red-600 text-xs font-semibold' }, err.message || 'Lỗi khi tải lịch sử'));
+  }
+}
+
 async function loadPatients() {
   const { data, error } = await sb.from('profiles')
     .select('id,patient_code,full_name,phone,email,must_change_password,created_at')
@@ -524,15 +649,16 @@ function renderPatients() {
   for (const p of list) {
     rows.append(h('tr', { class: 'hover:bg-teal-50/50' },
       h('td', { class: 'p-3 font-bold' }, p.patient_code),
-      h('td', { class: 'p-3' }, p.full_name),
+      h('td', { class: 'p-3 font-semibold' }, p.full_name),
       h('td', { class: 'p-3' }, p.phone || '—'),
       h('td', { class: 'p-3' }, p.must_change_password
         ? h('span', { class: 'text-xs bg-amber-100 text-amber-800 rounded-full px-2 py-0.5 font-semibold' }, 'Chưa đổi mật khẩu')
         : h('span', { class: 'text-xs bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5 font-semibold' }, 'Đang dùng')),
       h('td', { class: 'p-3 text-right whitespace-nowrap' },
-        h('button', { class: 'btn px-3 py-1.5 bg-teal-600 text-white text-xs mr-1', onclick: () => openPatient(p) }, 'Chi tiết / Kê đơn'),
-        h('button', { class: 'btn px-3 py-1.5 border border-slate-300 bg-white text-xs mr-1', onclick: () => resetPassword(p) }, 'Đặt lại MK'),
-        h('button', { class: 'btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold', onclick: () => deletePatient(p) }, '🗑️ Xóa'))));
+        h('button', { class: 'btn px-3 py-1.5 bg-teal-600 text-white text-xs mr-1 rounded-xl shadow-2xs font-semibold', onclick: () => openPatient(p) }, 'Chi tiết / Kê đơn'),
+        h('button', { class: 'btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold mr-1 rounded-xl shadow-2xs transition', onclick: () => openMissedHistory(p) }, '📋 Lịch sử bỏ lỡ'),
+        h('button', { class: 'btn px-2.5 py-1.5 border border-slate-300 bg-white text-xs mr-1 rounded-xl', onclick: () => resetPassword(p) }, 'Đặt lại MK'),
+        h('button', { class: 'btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl', onclick: () => deletePatient(p) }, '🗑️ Xóa'))));
   }
 }
 
@@ -736,6 +862,33 @@ async function loadPatientDetail() {
   for (const r of sugar.data || []) {
     su.append(h('li', { class: 'py-1.5 flex justify-between' }, h('span', {}, `${fmtDate(r.date)} · ${TOD[r.time_of_day]}`), h('strong', {}, `${r.level} mmol/L`)));
   }
+
+  // Nạp 5 cữ thuốc bỏ lỡ gần đây
+  const missedUl = $('pd-missed-list');
+  if (missedUl) {
+    missedUl.replaceChildren(h('li', { class: 'py-2 text-slate-400 text-center' }, 'Đang tải lịch sử bỏ lỡ…'));
+    try {
+      const mh = await api(`/api/admin/patients/${encodeURIComponent(p.id)}/missed-history?days=30`);
+      const recentMissed = (mh.missed || []).slice(0, 5);
+      missedUl.replaceChildren();
+      if (!recentMissed.length) {
+        missedUl.append(h('li', { class: 'py-2 text-center text-emerald-700 font-medium' }, '🎉 Bệnh nhân không bỏ lỡ cữ thuốc nào gần đây.'));
+      } else {
+        for (const m of recentMissed) {
+          missedUl.append(h('li', { class: 'py-2 flex justify-between items-start gap-2 border-b border-rose-100/50 last:border-0' },
+            h('div', {},
+              h('span', { class: 'font-bold text-slate-800' }, m.prescriptions?.drug_name || 'Thuốc', m.prescriptions?.dosage ? ` (${m.prescriptions.dosage})` : ''),
+              m.notes && h('p', { class: 'text-[11px] text-rose-600 font-medium mt-0.5' }, m.notes)
+            ),
+            h('span', { class: 'shrink-0 font-mono text-[11px] text-slate-600 bg-white px-2 py-0.5 rounded-lg border border-rose-200' },
+              `${fmtDate(m.date)} · ${SLOTS[m.time_slot] || m.time_slot}`)
+          ));
+        }
+      }
+    } catch {
+      missedUl.replaceChildren(h('li', { class: 'py-2 text-slate-400 text-center' }, 'Không thể tải lịch sử bỏ lỡ.'));
+    }
+  }
 }
 
 async function onAddPrescription(e) {
@@ -809,64 +962,262 @@ async function deletePrescription(rx) {
   }
 }
 
-/* ---------------------------------------------------------------- thống kê */
-async function loadStats() {
-  let s;
-  try { s = await api('/api/admin/stats/adr?days=' + encodeURIComponent($('stats-days').value)); }
-  catch (e) { toast(e.message, 'error'); return; }
+/* ---------------------------------------------------------------- thống kê & biểu đồ */
+let chartComplianceRatio = null;
+let chartMissedTimeline = null;
+let chartTopMissed = null;
+let chartAdrSeverity = null;
+let chartAdrSymptoms = null;
 
-  const body = $('stats-body');
-  const bars = (obj, colorFn) => {
-    const entries = Object.entries(obj);
-    const max = Math.max(1, ...entries.map(([, v]) => v));
-    if (!entries.length) return [h('p', { class: 'text-slate-500 text-sm' }, 'Chưa có dữ liệu.')];
-    return entries.map(([k, v]) => h('div', { class: 'mb-2' },
-      h('div', { class: 'flex justify-between text-sm' }, h('span', {}, k), h('strong', {}, v)),
-      h('div', { class: 'h-2.5 bg-slate-100 rounded-full overflow-hidden' },
-        h('div', { class: `h-full rounded-full ${colorFn(k)}`, style: `width:${Math.round((v / max) * 100)}%` }))));
-  };
-  const sevColor = (k) => (k === 'nang' ? 'bg-red-500' : k === 'vua' ? 'bg-amber-400' : 'bg-emerald-500');
-  const sevRaw = Object.entries(s.by_severity);
-
-  body.replaceChildren(
-    h('div', { class: 'card p-5' },
-      h('p', { class: 'text-sm text-slate-500' }, `Tổng báo cáo (${s.days} ngày)`),
-      h('p', { class: 'text-4xl font-extrabold text-teal-800' }, s.total),
-      h('p', { class: 'text-sm mt-2' }, h('strong', { class: 'text-red-600' }, s.unreviewed), ' chưa được xem')),
-    h('div', { class: 'card p-5' }, h('h2', { class: 'font-bold mb-3' }, 'Theo mức độ'),
-      ...sevRaw.map(([k, v]) => bars({ [SEVERITY[k] || k]: v }, () => sevColor(k))[0]),
-      !sevRaw.length && h('p', { class: 'text-slate-500 text-sm' }, 'Chưa có dữ liệu.')),
-    h('div', { class: 'card p-5' }, h('h2', { class: 'font-bold mb-3' }, 'Theo triệu chứng'), ...bars(s.by_symptom, () => 'bg-teal-500')));
+function destroyCharts() {
+  if (chartComplianceRatio) { chartComplianceRatio.destroy(); chartComplianceRatio = null; }
+  if (chartMissedTimeline) { chartMissedTimeline.destroy(); chartMissedTimeline = null; }
+  if (chartTopMissed) { chartTopMissed.destroy(); chartTopMissed = null; }
+  if (chartAdrSeverity) { chartAdrSeverity.destroy(); chartAdrSeverity = null; }
+  if (chartAdrSymptoms) { chartAdrSymptoms.destroy(); chartAdrSymptoms = null; }
 }
 
-/* ---------------------------------------------------------------- nhắc thuốc & email */
+async function loadStats() {
+  const daysVal = $('stats-days')?.value || '30';
+  let s;
+  try {
+    s = await api('/api/admin/stats/overview?days=' + encodeURIComponent(daysVal));
+  } catch (e) {
+    toast(e.message, 'error');
+    return;
+  }
+
+  // Cập nhật 4 thẻ KPI
+  const comp = s.compliance || {};
+  const adr = s.adr || {};
+
+  if ($('kpi-adherence')) $('kpi-adherence').textContent = comp.total_doses > 0 ? `${comp.adherence_rate}%` : '—';
+  if ($('kpi-doses-sub')) $('kpi-doses-sub').textContent = `${comp.taken_doses || 0} / ${comp.total_doses || 0} cữ đã dùng`;
+  if ($('kpi-missed')) $('kpi-missed').textContent = `${comp.missed_doses || 0}`;
+  if ($('kpi-missed-sub')) $('kpi-missed-sub').textContent = comp.missed_doses > 0 ? 'Cần can thiệp' : 'Tuyệt vời';
+
+  const topP = (comp.top_missed_patients || [])[0];
+  if ($('kpi-top-patient')) $('kpi-top-patient').textContent = topP ? topP.full_name : 'Không có';
+  if ($('kpi-top-patient-sub')) $('kpi-top-patient-sub').textContent = topP ? `${topP.missed_count} cữ (${topP.patient_code})` : 'Tuân thủ tốt';
+
+  if ($('kpi-adr')) $('kpi-adr').textContent = `${adr.total || 0}`;
+  if ($('kpi-adr-sub')) {
+    $('kpi-adr-sub').textContent = adr.unreviewed > 0 ? `${adr.unreviewed} chưa xem` : 'Đã xem hết';
+    $('kpi-adr-sub').className = adr.unreviewed > 0 ? 'text-[11px] text-rose-600 mt-1 font-semibold' : 'text-[11px] text-emerald-600 mt-1 font-semibold';
+  }
+
+  // Hủy biểu đồ cũ trước khi vẽ lại
+  destroyCharts();
+
+  if (typeof Chart === 'undefined') {
+    return;
+  }
+
+  // 1. Biểu đồ tròn: Tỷ lệ tuân thủ
+  const canvasCompliance = $('chart-compliance-ratio');
+  if (canvasCompliance) {
+    const taken = comp.taken_doses || 0;
+    const missed = comp.missed_doses || 0;
+    const hasData = taken + missed > 0;
+    chartComplianceRatio = new Chart(canvasCompliance, {
+      type: 'doughnut',
+      data: {
+        labels: hasData ? ['Đã uống', 'Bỏ lỡ'] : ['Chưa có dữ liệu'],
+        datasets: [{
+          data: hasData ? [taken, missed] : [1],
+          backgroundColor: hasData ? ['#0d9488', '#f43f5e'] : ['#e2e8f0'],
+          borderWidth: 2,
+          borderColor: '#ffffff',
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '72%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { boxWidth: 12, padding: 12, font: { weight: 600, size: 12 } },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.label}: ${ctx.raw} cữ (${Math.round((ctx.raw / (taken + missed || 1)) * 100)}%)`,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // 2. Biểu đồ cột: Biến thiên theo ngày
+  const canvasTimeline = $('chart-missed-timeline');
+  if (canvasTimeline) {
+    const timeline = comp.timeline || [];
+    chartMissedTimeline = new Chart(canvasTimeline, {
+      type: 'bar',
+      data: {
+        labels: timeline.length ? timeline.map((t) => t.date.slice(8) + '/' + t.date.slice(5, 7)) : ['Hôm nay'],
+        datasets: [
+          {
+            label: 'Đã uống',
+            data: timeline.length ? timeline.map((t) => t.taken) : [0],
+            backgroundColor: '#0d9488',
+            borderRadius: 6,
+            stack: 'stack0',
+          },
+          {
+            label: 'Bỏ lỡ',
+            data: timeline.length ? timeline.map((t) => t.missed) : [0],
+            backgroundColor: '#f43f5e',
+            borderRadius: 6,
+            stack: 'stack0',
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0 } },
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { boxWidth: 12, padding: 12, font: { weight: 600, size: 12 } },
+          },
+        },
+      },
+    });
+  }
+
+  // 3. Biểu đồ cột ngang: Top bệnh nhân bỏ lỡ nhiều nhất
+  const canvasTop = $('chart-top-missed');
+  if (canvasTop) {
+    const topList = comp.top_missed_patients || [];
+    chartTopMissed = new Chart(canvasTop, {
+      type: 'bar',
+      data: {
+        labels: topList.length ? topList.map((p) => p.full_name) : ['Không có bệnh nhân bỏ lỡ'],
+        datasets: [{
+          label: 'Số cữ bỏ lỡ',
+          data: topList.length ? topList.map((p) => p.missed_count) : [0],
+          backgroundColor: '#f43f5e',
+          borderRadius: 6,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0 } },
+          y: { grid: { display: false } },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              afterLabel: (ctx) => {
+                const item = topList[ctx.dataIndex];
+                return item ? `Mã BN: ${item.patient_code}\n(Bấm để xem chi tiết lịch sử)` : '';
+              },
+            },
+          },
+        },
+        onClick: (evt, elements) => {
+          if (elements.length > 0) {
+            const idx = elements[0].index;
+            const item = topList[idx];
+            if (item) {
+              const p = (patients || []).find((x) => x.id === item.patient_id);
+              openMissedHistory(p || item);
+            }
+          }
+        },
+      },
+    });
+  }
+
+  // 4. Biểu đồ tròn: Mức độ ADR
+  const canvasSev = $('chart-adr-severity');
+  if (canvasSev) {
+    const sev = adr.by_severity || {};
+    const nhe = sev.nhe || 0;
+    const vua = sev.vua || 0;
+    const nang = sev.nang || 0;
+    const hasData = nhe + vua + nang > 0;
+    chartAdrSeverity = new Chart(canvasSev, {
+      type: 'doughnut',
+      data: {
+        labels: hasData ? ['Nhẹ', 'Vừa', 'Nặng'] : ['Chưa có báo cáo'],
+        datasets: [{
+          data: hasData ? [nhe, vua, nang] : [1],
+          backgroundColor: hasData ? ['#10b981', '#f59e0b', '#ef4444'] : ['#e2e8f0'],
+          borderWidth: 2,
+          borderColor: '#ffffff',
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { boxWidth: 12, padding: 12, font: { weight: 600, size: 12 } },
+          },
+        },
+      },
+    });
+  }
+
+  // 5. Biểu đồ cột ngang: Triệu chứng ADR
+  const canvasSym = $('chart-adr-symptoms');
+  if (canvasSym) {
+    const sym = adr.by_symptom || {};
+    const symKeys = Object.keys(sym);
+    const symVals = Object.values(sym);
+    chartAdrSymptoms = new Chart(canvasSym, {
+      type: 'bar',
+      data: {
+        labels: symKeys.length ? symKeys : ['Chưa có triệu chứng'],
+        datasets: [{
+          label: 'Số ca',
+          data: symVals.length ? symVals : [0],
+          backgroundColor: '#0d9488',
+          borderRadius: 6,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0 } },
+          y: { grid: { display: false } },
+        },
+        plugins: {
+          legend: { display: false },
+        },
+      },
+    });
+  }
+}
+
+/* ---------------------------------------------------------------- Cài đặt chung (Khung giờ nhắc) */
 async function loadReminderSettings() {
   let s;
   try { s = await api('/api/admin/reminder-settings'); }
   catch (e) { toast(e.message, 'error'); return; }
 
-  const box = $('smtp-status-box');
-  if (s.gmail_configured) {
-    box.className = 'p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-900';
-    box.replaceChildren(
-      h('p', { class: 'font-bold' }, '✓ Đã cấu hình Gmail SMTP'),
-      h('p', { class: 'text-xs text-emerald-700 mt-1' }, `Tài khoản gửi: ${s.gmail_user}`),
-      h('p', { class: 'text-xs text-emerald-600 mt-1' }, 'Hệ thống tự động chạy ngầm gửi email đúng khung giờ mỗi ngày.')
-    );
-  } else {
-    box.className = 'p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900';
-    box.replaceChildren(
-      h('p', { class: 'font-bold' }, '⚠️ Chưa cấu hình Gmail SMTP trong file .env'),
-      h('p', { class: 'text-xs text-amber-800 mt-1' }, 'Vui lòng điền GMAIL_USER và GMAIL_APP_PASSWORD trong file .env để kích hoạt tính năng gửi email.')
-    );
-  }
-
   const container = $('slot-times-inputs');
+  if (!container) return;
   container.replaceChildren();
   for (const [slot, timeStr] of Object.entries(s.slot_times || {})) {
     const slotLabel = SLOTS[slot] || slot;
     container.append(
-      h('div', { class: 'flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl' },
+      h('div', { class: 'flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl' },
         h('label', { for: 'input-time-' + slot, class: 'font-semibold text-slate-700 text-sm flex items-center gap-2' },
           h('span', { class: 'w-2 h-2 rounded-full bg-teal-500' }),
           slotLabel
@@ -877,7 +1228,7 @@ async function loadReminderSettings() {
           name: slot,
           value: timeStr,
           required: true,
-          class: 'border border-slate-300 rounded-lg px-2.5 py-1 text-sm font-mono font-bold bg-white text-teal-800'
+          class: 'border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono font-bold bg-white text-teal-800'
         })
       )
     );
@@ -903,62 +1254,6 @@ async function onSaveSlotTimes(e) {
     toast(err.message, 'error');
   }
   btn.disabled = false; btn.textContent = '💾 Lưu khung giờ';
-}
-
-async function onTestEmail(e) {
-  e.preventDefault();
-  const to_email = $('test-email-input').value.trim();
-  const msg = $('test-email-msg');
-  setError(msg, '');
-  if (!to_email) { setError(msg, 'Vui lòng nhập email'); return; }
-
-  const btn = $('test-email-btn');
-  btn.disabled = true; btn.textContent = 'Đang gửi kiểm tra…';
-  try {
-    const res = await api('/api/admin/test-email', {
-      method: 'POST',
-      body: JSON.stringify({ to_email }),
-    });
-    msg.className = 'text-sm font-semibold text-emerald-700';
-    msg.textContent = res.message || 'Đã gửi thành công!';
-    show(msg, true);
-    toast('Đã gửi email thử nghiệm thành công');
-  } catch (err) {
-    msg.className = 'text-sm font-semibold text-red-600';
-    msg.textContent = err.message;
-    show(msg, true);
-    toast(err.message, 'error');
-  }
-  btn.disabled = false; btn.textContent = 'Gửi email thử nghiệm';
-}
-
-async function onTriggerReminders() {
-  const slot = $('manual-slot-select').value || null;
-  const resBox = $('trigger-result');
-  const btn = $('trigger-reminders-btn');
-  btn.disabled = true; btn.textContent = 'Đang gửi…';
-  try {
-    const res = await api('/api/admin/reminders/trigger', {
-      method: 'POST',
-      body: JSON.stringify({ slot, force: true }),
-    });
-    resBox.className = 'text-xs p-3 bg-teal-50 border border-teal-200 rounded-xl space-y-1 text-teal-900';
-    resBox.replaceChildren(
-      h('p', { class: 'font-bold' }, `Kết quả gửi: ${res.sent} email đã gửi thành công`),
-      h('p', {}, `Đã bỏ qua: ${res.skipped_already_taken_or_sent} (do đã uống hoặc đã gửi hôm nay)`),
-      (res.details || []).length > 0 && h('ul', { class: 'list-disc pl-4 mt-1' },
-        res.details.map((d) => h('li', {}, `${d.patient} – ${d.drug} (${SLOTS[d.slot] || d.slot})`))
-      )
-    );
-    show(resBox, true);
-    toast(`Đã gửi ${res.sent} email nhắc`);
-  } catch (err) {
-    resBox.className = 'text-xs p-3 bg-red-50 border border-red-200 rounded-xl text-red-700';
-    resBox.textContent = err.message;
-    show(resBox, true);
-    toast(err.message, 'error');
-  }
-  btn.disabled = false; btn.textContent = 'Gửi nhắc ngay';
 }
 
 /* ---------------------------------------------------------------- Phê duyệt Admin */
