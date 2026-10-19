@@ -140,7 +140,7 @@ set search_path = public
 as $$
 begin
   insert into public.profiles (
-    id, role, patient_code, full_name, phone, email, is_first_login, is_approved, approval_status
+    id, role, patient_code, full_name, phone, email, must_change_password, is_approved, approval_status
   )
   values (
     new.id,
@@ -315,7 +315,7 @@ create policy push_own_all on public.push_subscriptions
 revoke all on all tables in schema public from anon;
 revoke all on all tables in schema public from authenticated;
 
-grant select, update (full_name, phone, email, must_change_password, is_first_login) on public.profiles to authenticated;
+grant select, update (full_name, phone, email, must_change_password) on public.profiles to authenticated;
 grant select, insert, update, delete on public.prescriptions to authenticated;
 grant select, insert, update on public.daily_logs to authenticated;
 grant select, insert, update on public.adr_reports to authenticated;

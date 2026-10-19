@@ -262,9 +262,8 @@ async function afterLogin() {
       setError($('login-error'), 'Tài khoản bác sĩ/dược sĩ vui lòng đăng nhập ở trang quản trị (/admin.html).');
       return;
     }
-    // Kiểm tra cờ is_first_login (bắt buộc đổi mật khẩu ở lần đăng nhập đầu)
-    const isFirst = profile.is_first_login !== undefined ? profile.is_first_login : profile.must_change_password;
-    if (isFirst) {
+    // Bắt buộc đổi mật khẩu ở lần đăng nhập đầu
+    if (profile.must_change_password) {
       showView('change-pw');
       return;
     }
@@ -944,17 +943,8 @@ async function onChangePassword(e, id1, id2, errId, btnId, first, oldPwId = null
     return;
   }
 
-  // Cập nhật trạng thái đổi mật khẩu (tương thích linh hoạt với cả schema cũ và mới của Supabase)
-  const updatePayload = { must_change_password: false };
-  if (profile && 'is_first_login' in profile) {
-    updatePayload.is_first_login = false;
-  }
-  let { error: e2 } = await sb.from('profiles').update(updatePayload).eq('id', profile.id);
-  if (e2 && updatePayload.is_first_login !== undefined) {
-    console.warn('Thử cập nhật lại chỉ với must_change_password do DB chưa có is_first_login:', e2);
-    const retry = await sb.from('profiles').update({ must_change_password: false }).eq('id', profile.id);
-    e2 = retry.error;
-  }
+  // Cập nhật trạng thái đổi mật khẩu
+  const { error: e2 } = await sb.from('profiles').update({ must_change_password: false }).eq('id', profile.id);
 
   btn.disabled = false;
   btn.textContent = originalBtnText;
@@ -965,7 +955,6 @@ async function onChangePassword(e, id1, id2, errId, btnId, first, oldPwId = null
   }
 
   if (profile) {
-    profile.is_first_login = false;
     profile.must_change_password = false;
   }
 

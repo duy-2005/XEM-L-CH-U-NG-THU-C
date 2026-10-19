@@ -80,6 +80,19 @@ Dựa trên tiêu chuẩn **Anthropic Frontend Design** & **UI-UX Pro Max (Swiss
   - Cảnh báo rõ lý do: Thiết bị này chưa được cấp quyền thông báo đẩy -> nguy cơ bỏ lỡ cữ thuốc.
   - Nút chính: **"Duyệt thông báo ngay"** -> Yêu cầu cấp quyền và kích hoạt Web Push ngay lập tức.
   - Nút phụ: **"Bỏ qua (Để sau)"** -> Tạm ẩn trong phiên làm việc hiện tại (`sessionStorage`), mở lại ứng dụng phiên sau sẽ tiếp tục nhắc nhở.
+- [x] Đã hoàn thành 100%
+
+---
+
+## 7. Giai đoạn 14: Tối Ưu Hóa & Dọn Dẹp Mã Nguồn Dư Thừa (Dead Code Cleanup)
+- **Bối cảnh & Vấn đề:** Hệ thống sau nhiều giai đoạn nâng cấp tồn tại một số đoạn mã dự phòng (fallback) không còn cần thiết, các cờ trạng thái trùng lặp (`must_change_password` và `is_first_login`), và thẻ kỹ thuật lâm sàng `[NO_MAKEUP]` chưa được lọc sạch khi gửi email cho bệnh nhân.
+- **Giải pháp:**
+  - Thống nhất cờ bắt buộc đổi mật khẩu thành 1 chuẩn duy nhất `must_change_password` trên toàn bộ hệ thống (`sql/01_schema.sql`, `backend/main.py`, `frontend/app.js`).
+  - Dọn sạch các khối `try/catch` lồng nhau phức tạp trong các hàm phê duyệt admin và đặt lại mật khẩu trong `backend/main.py`.
+  - Cập nhật hàm `get_clean_instruction` trong `backend/notifier.py` lọc bỏ cả thẻ `[NO_MAKEUP]` để nội dung email bệnh nhân luôn trong sáng, chuẩn y khoa.
+  - Lưu trực tiếp giá trị `allow_makeup` vào cột bảng `prescriptions` trong cơ sở dữ liệu khi kê đơn.
+  - Bump phiên bản Service Worker lên `dtd-shell-v18` và cập nhật thẻ asset version `?v=18`.
+- [x] Đã hoàn thành 100%
 
 
 

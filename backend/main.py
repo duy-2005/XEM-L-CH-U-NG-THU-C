@@ -180,10 +180,7 @@ async def reset_password(request: Request, patient_id: str, admin: CurrentUser =
     r = await supa.admin_update_user(patient_id, {"password": s.default_patient_password})
     if r.status_code >= 400:
         raise HTTPException(502, "Không đặt lại được mật khẩu")
-    try:
-        await supa.rest_patch("profiles", {"id": f"eq.{patient_id}"}, {"must_change_password": True, "is_first_login": True})
-    except Exception:
-        await supa.rest_patch("profiles", {"id": f"eq.{patient_id}"}, {"must_change_password": True})
+    await supa.rest_patch("profiles", {"id": f"eq.{patient_id}"}, {"must_change_password": True})
     log.info("admin=%s đặt lại mật khẩu bệnh nhân %s", admin.id, patient_id)
     return {"ok": True, "default_password": s.default_patient_password}
 
@@ -412,17 +409,7 @@ async def test_push_notification(user: CurrentUser = Depends(current_user)):
         "tag": "test-alert",
     }
 
-    sent = 0
-    for s_row in subs:
-        sub_info = {
-            "endpoint": s_row["endpoint"],
-            "keys": {
-                "p256dh": s_row["p256dh"],
-                "auth": s_row["auth"],
-            },
-        }
-        if await notifier.send_webpush(sub_info, payload):
-            sent += 1
+    sent = await notifier.send_webpush_to_many(subs, payload)
 
     if sent == 0:
         raise HTTPException(
@@ -446,22 +433,15 @@ async def request_admin_approval(
         return {"status": "already_approved", "message": "Tài khoản của bạn đã có quyền Quản trị viên."}
 
     now_iso = datetime.now(notifier.VN_TZ).isoformat()
-    try:
-        await supa.rest_update(
-            "profiles",
-            {"id": f"eq.{user.id}"},
-            {
-                "email": user.email,
-                "approval_status": "pending",
-                "approval_requested_at": now_iso,
-            },
-        )
-    except Exception as e_prof:
-        log.warning("Chưa cập nhật được approval_status trong profiles (cần chạy SQL thêm cột): %s", e_prof)
-        try:
-            await supa.rest_update("profiles", {"id": f"eq.{user.id}"}, {"email": user.email})
-        except Exception:
-            pass
+    await supa.rest_update(
+        "profiles",
+        {"id": f"eq.{user.id}"},
+        {
+            "email": user.email,
+            "approval_status": "pending",
+            "approval_requested_at": now_iso,
+        },
+    )
 
     # Sinh token ký số HMAC (có hạn 48 giờ)
     token = notifier.generate_admin_approval_token(user.id, user.email)
@@ -525,24 +505,17 @@ async def approve_account_via_email(
         user_name = ""
 
     now_iso = datetime.now(notifier.VN_TZ).isoformat()
-    try:
-        await supa.rest_update(
-            "profiles",
-            {"id": f"eq.{uid}"},
-            {
-                "role": "admin",
-                "is_approved": True,
-                "approval_status": "approved",
-                "approved_at": now_iso,
-                "must_change_password": False,
-            },
-        )
-    except Exception:
-        await supa.rest_update(
-            "profiles",
-            {"id": f"eq.{uid}"},
-            {"role": "admin", "must_change_password": False},
-        )
+    await supa.rest_update(
+        "profiles",
+        {"id": f"eq.{uid}"},
+        {
+            "role": "admin",
+            "is_approved": True,
+            "approval_status": "approved",
+            "approved_at": now_iso,
+            "must_change_password": False,
+        },
+    )
 
     # Gửi email chúc mừng tới người dùng
     if email:
@@ -600,25 +573,17 @@ async def approve_or_reject_user(
         now_iso = datetime.now(notifier.VN_TZ).isoformat()
 
         if body.action == "approve":
-            try:
-                await supa.rest_update(
-                    "profiles",
-                    {"id": f"eq.{body.user_id}"},
-                    {
-                        "role": "admin",
-                        "is_approved": True,
-                        "approval_status": "approved",
-                        "approved_at": now_iso,
-                        "must_change_password": False,
-                    },
-                )
-            except Exception as e_up:
-                log.warning("Cập nhật đầy đủ cột phê duyệt thất bại, thử cập nhật cơ bản: %s", e_up)
-                await supa.rest_update(
-                    "profiles",
-                    {"id": f"eq.{body.user_id}"},
-                    {"role": "admin", "must_change_password": False},
-                )
+            await supa.rest_update(
+                "profiles",
+                {"id": f"eq.{body.user_id}"},
+                {
+                    "role": "admin",
+                    "is_approved": True,
+                    "approval_status": "approved",
+                    "approved_at": now_iso,
+                    "must_change_password": False,
+                },
+            )
             try:
                 await supa.admin_update_user(body.user_id, {"user_metadata": {"role": "admin"}})
             except Exception:
@@ -632,17 +597,14 @@ async def approve_or_reject_user(
                 )
             return {"status": "ok", "message": f"Đã phê duyệt quyền Admin cho {target_user.get('email', body.user_id)}."}
         else:
-            try:
-                await supa.rest_update(
-                    "profiles",
-                    {"id": f"eq.{body.user_id}"},
-                    {
-                        "is_approved": False,
-                        "approval_status": "rejected",
-                    },
-                )
-            except Exception as e_rej:
-                log.warning("Cập nhật từ chối thất bại: %s", e_rej)
+            await supa.rest_update(
+                "profiles",
+                {"id": f"eq.{body.user_id}"},
+                {
+                    "is_approved": False,
+                    "approval_status": "rejected",
+                },
+            )
             return {"status": "ok", "message": "Đã từ chối yêu cầu."}
     except HTTPException:
         raise

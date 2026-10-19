@@ -95,3 +95,14 @@
 - [x] **Task 32: Kiểm thử, bump cache PWA lên v17 và xác thực cú pháp**
   - **Mô tả:** Bump Service Worker lên `dtd-shell-v17`, asset tags `?v=17`, cú pháp `node -c` toàn bộ file JS kiểm tra thành công 0 lỗi.
 
+## Giai đoạn 14: Tối Ưu Hóa & Dọn Dẹp Mã Nguồn Dư Thừa (Dead Code Cleanup)
+- [x] **Task 33: Khảo sát đối chiếu toàn diện Backend, Frontend và Database**
+  - **Mô tả:** Rà soát 25 endpoints trong `backend/main.py`, đối chiếu các lời gọi API từ frontend, kiểm tra logic xử lý và tham vấn ý kiến người dùng qua `ask_question`.
+- [x] **Task 34: Chuẩn hóa cờ đổi mật khẩu lần đầu và loại bỏ khối try/catch dự phòng cũ**
+  - **Mô tả:** Thống nhất dùng chuẩn `must_change_password` trên toàn hệ thống (`sql/01_schema.sql`, `backend/main.py`, `frontend/app.js`). Loại bỏ các khối try/catch fallback dự phòng nhiều tầng khi DB đã ổn định.
+- [x] **Task 35: Chuẩn hóa lưu trữ quy tắc quên liều và làm sạch nhãn email**
+  - **Mô tả:** Trong `frontend/admin.js`, lưu trực tiếp `allow_makeup` vào bảng `prescriptions`. Trong `backend/notifier.py`, mở rộng hàm `get_clean_instruction` để loại bỏ thẻ `[NO_MAKEUP]` ra khỏi nội dung email gửi bệnh nhân.
+- [x] **Task 36: Kiểm thử cú pháp toàn diện, bump PWA cache lên v18**
+  - **Mô tả:** Chạy `py_compile` và `node -c` xác thực 100% không lỗi cú pháp; bump cache Service Worker lên `dtd-shell-v18`.
+
+

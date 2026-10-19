@@ -777,6 +777,7 @@ async function onAddPrescription(e) {
     dosage: $('rx-dose').value.trim(),
     instruction: encodedInstruction,
     is_insulin: $('rx-insulin').checked,
+    allow_makeup: allowMakeUp,
     frequency: assignedSlots,
     created_by: me.id,
   });

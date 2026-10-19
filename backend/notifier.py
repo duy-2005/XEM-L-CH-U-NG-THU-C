@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio
 import base64
-import email.message
+from email.message import EmailMessage
 import hashlib
 import hmac
 import json
@@ -46,7 +46,9 @@ def parse_prescription_times(p: dict) -> dict[str, str]:
 def get_clean_instruction(instruction: str | None) -> str:
     if not instruction:
         return ""
-    return re.sub(r"\[TIMES:[^\]]+\]", "", instruction).strip()
+    clean = re.sub(r"\[TIMES:[^\]]+\]", "", instruction)
+    clean = re.sub(r"\[NO_MAKEUP\]\s*", "", clean)
+    return clean.strip()
 
 
 
@@ -71,7 +73,7 @@ def _send_email_sync(to_email: str, subject: str, html_body: str, text_body: str
         log.warning("Chưa cấu hình GMAIL_USER hoặc GMAIL_APP_PASSWORD, bỏ qua gửi email đến %s", to_email)
         return False
 
-    msg = email.message.EmailMessage()
+    msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = f"Ứng Dụng ĐTĐ <{s.gmail_user}>"
     msg["To"] = to_email
