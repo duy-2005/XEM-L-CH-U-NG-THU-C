@@ -924,7 +924,7 @@ async function onAddPrescription(e) {
   const encodedInstruction = `[TIMES:${selectedRxTimes.join(',')}] ${makeupTag}${rawInst}`.trim();
 
   const btn = $('rx-submit'); btn.disabled = true;
-  const { error } = await sb.from('prescriptions').insert({
+  const rxPayload = {
     patient_id: currentPatient.id,
     drug_name,
     dosage: $('rx-dose').value.trim(),
@@ -933,7 +933,14 @@ async function onAddPrescription(e) {
     allow_makeup: allowMakeUp,
     frequency: assignedSlots,
     created_by: me.id,
-  });
+  };
+  let { error } = await sb.from('prescriptions').insert(rxPayload);
+  // Tương thích ngược: Nếu database chưa chạy migration cột allow_makeup, tự động lưu dự phòng
+  if (error && (error.message || '').includes('allow_makeup')) {
+    delete rxPayload.allow_makeup;
+    const retry = await sb.from('prescriptions').insert(rxPayload);
+    error = retry.error;
+  }
   btn.disabled = false;
   if (error) { setError($('rx-error'), 'Không lưu được đơn thuốc: ' + (error.message || '')); return; }
   toast('Đã thêm đơn thuốc');
