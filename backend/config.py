@@ -15,9 +15,9 @@ class Settings(BaseSettings):
     supabase_secret_key: str            # CHỈ dùng ở backend (Render Environment Variable)
     supabase_publishable_key: str = "sb_publishable_1_rre0CKhA2xkDnfejPJzQ_tr8ozVC3"  # công khai, dành cho frontend
     allowed_origins: str = "https://lich-uong-thuoc.onrender.com,http://localhost:8000"
-    cron_secret: str = "duy_cron_secret_2026"
+    cron_secret: str = ""
     app_url: str = "https://lich-uong-thuoc.onrender.com"
-    default_patient_password: str = "123456"
+    default_patient_password: str = ""
     patient_email_domain: str = "benhnhan.local"
 
     @field_validator("app_url", mode="after")
@@ -32,15 +32,15 @@ class Settings(BaseSettings):
             return render_url
         return "https://lich-uong-thuoc.onrender.com"
 
-    # Cấu hình Gmail SMTP
-    gmail_user: str = "damduy800@gmail.com"
-    gmail_app_password: str = "hxixitwkrkszvwnk"
-    doctor_alert_email: str = "damduy800@gmail.com"
+    # Cấu hình Gmail SMTP (đọc từ .env / Render Environment Variables)
+    gmail_user: str = ""
+    gmail_app_password: str = ""
+    doctor_alert_email: str = ""
 
-    # Cấu hình Web Push (VAPID)
-    vapid_public_key: str = "BA44fPa2speh-4U6ekxP7qyNK-KhVqisJNsNu3DXwvEKyNFQIu6MzuaIdqA4kjRRf3TlcMc53hvzubgsfkePNr0"
-    vapid_private_key: str = "deOKFKXYAQSwmSKnKsz6NjR7k2AF3LA661kHyUyi9tc"
-    vapid_subject: str = "mailto:damduy800@gmail.com"
+    # Cấu hình Web Push VAPID (đọc từ .env / Render Environment Variables)
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:admin@benhnhan.local"
 
     # Giờ nhắc thuốc mặc định (HH:MM) - có thể chỉnh trong .env
     reminder_time_sang: str = "07:30"

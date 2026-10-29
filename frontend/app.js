@@ -433,11 +433,10 @@ async function onTogglePatientPush() {
   if (existingSub) {
     if (btn) { btn.disabled = true; btn.textContent = 'Đang tắt…'; }
     try {
-      await fetch('/api/push-subscription/unsubscribe', {
+      await authApi('/api/push-subscription/unsubscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: existingSub.endpoint }),
-      }).catch(() => {});
+      });
       await existingSub.unsubscribe();
       updatePatientPushBtnUI(false);
       toast('Đã tắt chuông nhắc thuốc trên thiết bị này');
@@ -535,9 +534,8 @@ function bindEvents() {
         if (!reg) return;
         reg.pushManager.getSubscription().then((sub) => {
           if (sub) {
-            fetch('/api/push-subscription/unsubscribe', {
+            authApi('/api/push-subscription/unsubscribe', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ endpoint: sub.endpoint }),
             }).catch(() => {});
             sub.unsubscribe().catch(() => {});

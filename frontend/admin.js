@@ -157,9 +157,8 @@ function bindEvents() {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
         if (sub) {
-          await fetch('/api/push-subscription/unsubscribe', {
+          await api('/api/push-subscription/unsubscribe', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ endpoint: sub.endpoint }),
           }).catch(() => {});
           await sub.unsubscribe().catch(() => {});
@@ -271,11 +270,10 @@ async function onTogglePush() {
   if (existingSub) {
     if (btn) btn.disabled = true;
     try {
-      await fetch('/api/push-subscription/unsubscribe', {
+      await api('/api/push-subscription/unsubscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: existingSub.endpoint }),
-      }).catch(() => {});
+      });
       await existingSub.unsubscribe();
       updatePushBtnUI(false);
       toast('✓ Đã tắt nhận thông báo đẩy trên thiết bị này');
@@ -692,17 +690,17 @@ async function onAddPatient(e) {
   try {
     const r = await api('/api/admin/patients', { method: 'POST', body: JSON.stringify(body) });
     $('dlg-add-patient').close();
-    toast(`Đã tạo ${r.patient_code}. Mật khẩu mặc định: ${r.default_password}`);
+    toast(`Đã tạo ${r.patient_code}. Mật khẩu khởi tạo: ${r.default_password}`);
     loadPatients();
   } catch (err) { setError($('np-error'), err.message); }
   btn.disabled = false;
 }
 
 async function resetPassword(p) {
-  if (!confirm(`Đặt lại mật khẩu của ${p.patient_code} về mặc định?\nBệnh nhân sẽ phải đổi mật khẩu khi đăng nhập.`)) return;
+  if (!confirm(`Đặt lại mật khẩu của ${p.patient_code} sang mật khẩu khởi tạo ngẫu nhiên mới?\nBệnh nhân sẽ phải đổi mật khẩu khi đăng nhập.`)) return;
   try {
     const r = await api(`/api/admin/patients/${encodeURIComponent(p.id)}/reset-password`, { method: 'POST' });
-    toast(`Đã đặt lại. Mật khẩu: ${r.default_password}`);
+    toast(`Đã đặt lại thành công. Mật khẩu khởi tạo mới: ${r.default_password}`);
     loadPatients();
   } catch (err) { toast(err.message, 'error'); }
 }

@@ -1,6 +1,18 @@
 /* Tiện ích dùng chung cho app bệnh nhân và trang quản trị */
 'use strict';
 
+// Bảo mật: Vô hiệu hóa các lệnh log debug trên môi trường Production để ngăn rò rỉ dữ liệu qua F12 Console
+(() => {
+  const isDev = typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.endsWith('.local'));
+  if (!isDev && typeof window !== 'undefined' && window.console) {
+    const noop = () => {};
+    window.console.log = noop;
+    window.console.debug = noop;
+    window.console.info = noop;
+  }
+})();
+
 const SLOTS = { sang: 'Sáng', trua: 'Trưa', chieu: 'Chiều', toi: 'Tối', truoc_ngu: 'Trước khi ngủ' };
 const SLOT_ORDER = ['sang', 'trua', 'chieu', 'toi', 'truoc_ngu'];
 const DEFAULT_SLOT_TIMES = {

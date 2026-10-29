@@ -1,6 +1,7 @@
 """FastAPI - cầu nối bảo mật cho các tác vụ đặc quyền của ứng dụng ĐTĐ/ADR."""
 import logging
 import re
+import secrets
 import uuid
 from collections import Counter
 from contextlib import asynccontextmanager
@@ -59,8 +60,24 @@ CSP = (
 )
 
 
+_BLOCKED_SCAN_PATTERNS = re.compile(
+    r"(\.(env|git|sql|py|sh|pem|key|crt|yaml|yml|bak|swp|ini|cfg|conf|dockerfile|ds_store|aws)|procfile|docker-compose)",
+    re.IGNORECASE,
+)
+
+
 @app.middleware("http")
-async def security_headers(request: Request, call_next):
+async def security_guard_and_headers(request: Request, call_next):
+    raw_path = request.url.path.lower()
+    # Chặn đứng tức thì mọi nỗ lực dò quét file nhạy cảm, file cấu hình, mã nguồn hoặc path traversal
+    if _BLOCKED_SCAN_PATTERNS.search(raw_path) or ".." in raw_path:
+        log.warning(
+            "Cảnh báo an ninh: Chặn request dò quét nhạy cảm: %s từ IP %s",
+            request.url.path,
+            request.client.host if request.client else "unknown",
+        )
+        return JSONResponse({"detail": "Truy cập bị từ chối"}, status_code=status.HTTP_403_FORBIDDEN)
+
     resp = await call_next(request)
     resp.headers["Content-Security-Policy"] = CSP
     resp.headers["X-Content-Type-Options"] = "nosniff"
@@ -143,6 +160,12 @@ async def public_config():
     }
 
 
+def _generate_secure_patient_password() -> str:
+    """Sinh mật khẩu ngẫu nhiên có độ entropy cao (chữ hoa, chữ thường, số, ký tự đặc biệt) chống đoán mò."""
+    num = secrets.randbelow(9000) + 1000
+    return f"Dtd@{num}"
+
+
 # ---------------------------------------------------------------- admin
 @app.post("/api/admin/patients", status_code=201)
 @limiter.limit("30/minute")
@@ -156,14 +179,16 @@ async def create_patient(request: Request, body: PatientCreate, admin: CurrentUs
         "phone": body.phone,
         "contact_email": str(body.email) if body.email else None,
     }
-    r = await supa.admin_create_user(email, s.default_patient_password, meta)
+    # Sinh mật khẩu ngẫu nhiên an toàn cho bệnh nhân
+    patient_pw = _generate_secure_patient_password()
+    r = await supa.admin_create_user(email, patient_pw, meta)
     if r.status_code in (409, 422):
         raise HTTPException(409, "Mã bệnh nhân đã tồn tại")
     if r.status_code >= 400:
         log.error("Tạo user lỗi: %s", r.status_code)
         raise HTTPException(502, "Không tạo được tài khoản")
     log.info("admin=%s tạo bệnh nhân %s", admin.id, code)
-    return {"id": r.json()["id"], "patient_code": code, "default_password": s.default_patient_password}
+    return {"id": r.json()["id"], "patient_code": code, "default_password": patient_pw}
 
 
 @app.post("/api/admin/patients/{patient_id}/reset-password")
@@ -176,13 +201,13 @@ async def reset_password(request: Request, patient_id: str, admin: CurrentUser =
     rows = await supa.rest_get("profiles", {"id": f"eq.{patient_id}", "select": "role"})
     if not rows or rows[0]["role"] != "patient":
         raise HTTPException(404, "Không tìm thấy bệnh nhân")
-    s = get_settings()
-    r = await supa.admin_update_user(patient_id, {"password": s.default_patient_password})
+    new_pw = _generate_secure_patient_password()
+    r = await supa.admin_update_user(patient_id, {"password": new_pw})
     if r.status_code >= 400:
         raise HTTPException(502, "Không đặt lại được mật khẩu")
     await supa.rest_patch("profiles", {"id": f"eq.{patient_id}"}, {"must_change_password": True})
     log.info("admin=%s đặt lại mật khẩu bệnh nhân %s", admin.id, patient_id)
-    return {"ok": True, "default_password": s.default_patient_password}
+    return {"ok": True, "default_password": new_pw}
 
 
 @app.delete("/api/admin/patients/{patient_id}")
@@ -444,10 +469,10 @@ async def save_patient_push_subscription(body: PushSubscriptionIn, user: Current
 
 
 @app.post("/api/push-subscription/unsubscribe")
-async def unsubscribe_push(body: PushUnsubscribeIn):
-    """Hủy đăng ký thông báo đẩy của thiết bị (khi người dùng tắt chuông hoặc đăng xuất)."""
+async def unsubscribe_push(body: PushUnsubscribeIn, user: CurrentUser = Depends(current_user)):
+    """Hủy đăng ký thông báo đẩy của thiết bị (chỉ chủ sở hữu thiết bị mới được gỡ)."""
     try:
-        await supa.rest_delete("push_subscriptions", {"endpoint": f"eq.{body.endpoint}"})
+        await supa.rest_delete("push_subscriptions", {"endpoint": f"eq.{body.endpoint}", "user_id": f"eq.{user.id}"})
         return {"ok": True, "message": "Đã hủy đăng ký nhận thông báo đẩy"}
     except Exception as e:
         log.warning("Lỗi hủy push subscription: %s", e)

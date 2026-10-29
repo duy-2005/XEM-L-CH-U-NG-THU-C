@@ -124,3 +124,19 @@ Dựa trên tiêu chuẩn **Anthropic Frontend Design** & **UI-UX Pro Max (Swiss
     - Viết hàm `loadStats()` khởi tạo các biểu đồ Chart.js tương tác, click vào thanh bệnh nhân mở ngay hồ sơ.
   - **Cache & Kiểm thử:** Bump Service Worker lên `dtd-shell-v20`, tài nguyên `?v=20`, kiểm tra cú pháp Python và JS đạt 100% không lỗi.
 - [x] Đã hoàn thành 100%
+
+---
+
+## 10. Giai đoạn 17: Gia Cố Bảo Mật Hệ Thống & Bảo Vệ Dữ Liệu Bệnh Nhân (Security Hardening)
+- **Bối cảnh & Đánh giá mô hình đe dọa (Threat Model):**
+  1. **Dữ liệu Supabase:** RLS (Row Level Security) hiện đang hoạt động tốt ở cấp PostgreSQL engine. Tuy nhiên, mật khẩu mặc định khởi tạo bệnh nhân cố định `123456` dễ bị kẻ xấu suy đoán nếu biết trước mã bệnh nhân.
+  2. **Trình duyệt / Console (F12):** Không thể bypass quyền Database hay giả mạo admin nhờ Trigger DB và backend verification. Tuy nhiên các log debug nội bộ và endpoint `unsubscribe` chưa có xác thực có thể bị lạm dụng.
+  3. **Tải mã nguồn & lộ file nhạy cảm:** Frontend tĩnh (HTML/JS/CSS) theo nguyên lý web luôn tải được về nhưng KHÔNG có dữ liệu bệnh nhân và KHÔNG có quyền thực thi tác vụ máy chủ. Mã nguồn backend và file cấu hình `.env` được bảo vệ độc lập, nhưng cần thêm middleware chủ động từ chối mọi nỗ lực quét file nhạy cảm.
+- **Kế hoạch gia cố 5 trụ cột:**
+  - **Trụ cột 1 (Chặn rà quét):** Thêm Middleware từ chối truy cập và chặn lập tức các request quét file nhạy cảm (`.env`, `.git`, `.py`, `.sql`, `.yaml`, `.pem`, `procfile`).
+  - **Trụ cột 2 (Vệ sinh bí mật):** Loại bỏ toàn bộ các fallback hardcoded credentials trong `backend/config.py` (App password, private key, cron secret), bắt buộc cấp qua `.env`.
+  - **Trụ cột 3 (Kiểm soát Endpoint):** Bổ sung dependency xác thực `current_user` cho `/api/push-subscription/unsubscribe`.
+  - **Trụ cột 4 (Mật khẩu bệnh nhân an toàn):** Nâng cấp logic tạo bệnh nhân: sinh mật khẩu ngẫu nhiên có độ entropy cao (`Dtd@` + 4 số ngẫu nhiên) thay cho mật khẩu yếu `123456`.
+  - **Trụ cột 5 (Làm sạch Console):** Chống lộ cấu trúc log qua F12 Console khi chạy ở môi trường production.
+  - **Kiểm thử & PWA Cache:** Bump Service Worker lên `dtd-shell-v21`.
+- [x] Đã hoàn thành 100% toàn bộ 5 trụ cột gia cố bảo mật.

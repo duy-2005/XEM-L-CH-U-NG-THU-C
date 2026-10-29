@@ -120,3 +120,17 @@
   - **Mô tả:** Nhúng thư viện Chart.js; thiết kế 4 thẻ KPI tổng quan; xây dựng 5 biểu đồ (Tỷ lệ tuân thủ, Biến thiên theo ngày, Top bệnh nhân bỏ lỡ nhiều nhất, Mức độ ADR, Tần suất triệu chứng ADR) với tương tác click trực tiếp vào bệnh nhân.
 - [x] **Task 44: Bump PWA cache lên v20 và kiểm tra cú pháp toàn hệ thống**
   - **Mô tả:** Bump Service Worker lên `dtd-shell-v20`, cập nhật asset tags `?v=20`, kiểm tra cú pháp Python và JS đạt 100% không lỗi.
+
+## Giai đoạn 17: Gia Cố Bảo Mật Hệ Thống & Bảo Vệ Dữ Liệu Bệnh Nhân (Security Hardening)
+- [x] **Task 45: Chặn dò quét file hệ thống & Thêm Security Request Guard (`backend/main.py`)**
+  - **Mô tả:** Thêm middleware chủ động phát hiện và chặn đứng (403 Forbidden) mọi request cố tình dò quét file nhạy cảm (`.env`, `.git`, `.py`, `.sql`, `.pem`, `procfile`, v.v.), ghi log cảnh báo bảo mật.
+- [x] **Task 46: Xóa bỏ các giá trị bí mật mặc định trong mã nguồn (`backend/config.py`)**
+  - **Mô tả:** Loại bỏ các chuỗi nhạy cảm hardcoded (`gmail_app_password`, `vapid_private_key`, `cron_secret`) ra khỏi code; chuyển sang bắt buộc đọc từ biến môi trường `.env` hoặc Render.
+- [x] **Task 47: Khóa Endpoint Unsubscribe & Thắt chặt quyền Web Push (`backend/main.py`)**
+  - **Mô tả:** Bổ sung xác thực `CurrentUser = Depends(current_user)` cho endpoint `/api/push-subscription/unsubscribe`, đảm bảo chỉ chính chủ thiết bị mới có quyền gỡ subscription.
+- [x] **Task 48: Nâng cao bảo mật mật khẩu bệnh nhân khởi tạo (`backend/main.py` & `frontend/admin.js`)**
+  - **Mô tả:** Thay vì cố định `123456`, triển khai cơ chế sinh mật khẩu ngẫu nhiên an toàn (ví dụ: `Dtd@xxxx`) khi bác sĩ tạo hồ sơ bệnh nhân, hiển thị để bác sĩ cấp cho bệnh nhân và giữ cờ bắt buộc đổi mật khẩu.
+- [x] **Task 49: Vô hiệu hóa console debug log trên môi trường Production (`frontend/common.js`)**
+  - **Mô tả:** Tự động lọc sạch các câu lệnh `console.log` / `console.debug` khi ứng dụng chạy trên tên miền công khai, ngăn chặn việc đọc lén luồng xử lý nội bộ qua F12 Console.
+- [x] **Task 50: Kiểm tra cú pháp toàn hệ thống và bump PWA cache lên v21**
+  - **Mô tả:** Chạy `py_compile` và `node -c` xác thực 100% không lỗi; bump phiên bản PWA cache lên `dtd-shell-v21`.
