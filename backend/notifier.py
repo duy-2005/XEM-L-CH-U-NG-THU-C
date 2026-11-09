@@ -5,6 +5,7 @@ import base64
 from email.message import EmailMessage
 import hashlib
 import hmac
+import html
 import json
 import logging
 import smtplib
@@ -198,7 +199,13 @@ def make_critical_alert_html(
     recorded_time: str,
     action_url: str,
 ) -> str:
-    """Tạo mẫu email cảnh báo y tế khẩn cấp, nổi bật và trực quan."""
+    """Tạo mẫu email cảnh báo y tế khẩn cấp, nổi bật và trực quan (đã lọc XSS/HTML Injection)."""
+    safe_title = html.escape(alert_title or "")
+    safe_name = html.escape(patient_name or "")
+    safe_code = html.escape(patient_code or "")
+    safe_time = html.escape(recorded_time or "")
+    safe_details = html.escape(details or "")
+    safe_url = html.escape(action_url or "", quote=True)
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -224,32 +231,32 @@ def make_critical_alert_html(
   <div class="card">
     <div class="header">
       <div style="font-size: 38px; margin-bottom: 6px;">🚨</div>
-      <h1 class="title">{alert_title}</h1>
+      <h1 class="title">{safe_title}</h1>
       <span class="badge">Cần can thiệp y tế khẩn cấp</span>
     </div>
 
     <div class="info-box">
       <div class="info-row">
         <span class="info-label">Bệnh nhân:</span>
-        <span class="info-val">{patient_name}</span>
+        <span class="info-val">{safe_name}</span>
       </div>
       <div class="info-row">
         <span class="info-label">Mã bệnh nhân:</span>
-        <span class="info-val">{patient_code}</span>
+        <span class="info-val">{safe_code}</span>
       </div>
       <div class="info-row">
         <span class="info-label">Thời gian ghi nhận:</span>
-        <span class="info-val">{recorded_time}</span>
+        <span class="info-val">{safe_time}</span>
       </div>
     </div>
 
     <div class="details-box">
       <strong>Chi tiết cảnh báo:</strong><br>
-      {details}
+      {safe_details}
     </div>
 
     <div class="action-wrap">
-      <a href="{action_url}" target="_blank" class="btn">
+      <a href="{safe_url}" target="_blank" class="btn">
         MỞ TRANG QUẢN TRỊ BÁC SĨ →
       </a>
     </div>
@@ -379,7 +386,12 @@ def make_admin_approval_request_html(
     approve_url: str,
     dashboard_url: str,
 ) -> str:
-    display_name = full_name.strip() or applicant_email
+    raw_name = (full_name or "").strip() or applicant_email
+    display_name = html.escape(raw_name or "")
+    safe_email = html.escape(applicant_email or "")
+    safe_time = html.escape(request_time or "")
+    safe_approve_url = html.escape(approve_url or "", quote=True)
+    safe_dashboard_url = html.escape(dashboard_url or "", quote=True)
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -421,11 +433,11 @@ def make_admin_approval_request_html(
       </div>
       <div class="info-row">
         <span class="info-label">Email Google:</span>
-        <span class="info-val">{applicant_email}</span>
+        <span class="info-val">{safe_email}</span>
       </div>
       <div class="info-row">
         <span class="info-label">Thời gian yêu cầu:</span>
-        <span class="info-val">{request_time}</span>
+        <span class="info-val">{safe_time}</span>
       </div>
     </div>
 
@@ -434,10 +446,10 @@ def make_admin_approval_request_html(
     </div>
 
     <div class="action-wrap">
-      <a href="{approve_url}" target="_blank" class="btn">
+      <a href="{safe_approve_url}" target="_blank" class="btn">
         ✔ PHÊ DUYỆT TÀI KHOẢN NÀY
       </a>
-      <a href="{dashboard_url}" target="_blank" class="sec-link">
+      <a href="{safe_dashboard_url}" target="_blank" class="sec-link">
         Hoặc quản lý phê duyệt trong Dashboard Quản trị →
       </a>
     </div>
@@ -451,7 +463,9 @@ def make_admin_approval_request_html(
 
 
 def make_admin_approval_success_html(full_name: str, dashboard_url: str) -> str:
-    display_name = full_name.strip() or "Quý Bác sĩ/Dược sĩ"
+    raw_name = (full_name or "").strip() or "Quý Bác sĩ/Dược sĩ"
+    display_name = html.escape(raw_name)
+    safe_dashboard_url = html.escape(dashboard_url or "", quote=True)
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -472,7 +486,7 @@ def make_admin_approval_success_html(full_name: str, dashboard_url: str) -> str:
       Tài khoản của bạn đã được Quản trị viên cấp quyền truy cập vào <strong>Hệ thống Quản trị ĐTĐ (Bác sĩ/Dược sĩ)</strong>.
     </p>
     <div>
-      <a href="{dashboard_url}" target="_blank" class="btn">
+      <a href="{safe_dashboard_url}" target="_blank" class="btn">
         TRUY CẬP DASHBOARD QUẢN TRỊ →
       </a>
     </div>
@@ -527,13 +541,19 @@ def make_reminder_html(
     app_url: str = "",
 ) -> str:
     s = get_settings()
-    base_url = (app_url or s.app_url or "").rstrip("/")
+    base_url = html.escape((app_url or s.app_url or "").rstrip("/"), quote=True)
+    safe_confirm_url = html.escape(confirm_url or "", quote=True)
+    safe_patient_name = html.escape(patient_name or "")
+    safe_drug_name = html.escape(drug_name or "")
+    safe_dosage = html.escape(dosage or "Theo chỉ dẫn của bác sĩ")
+    safe_instruction = html.escape(instruction or "")
+    safe_slot_name = html.escape(slot_name or "")
     verb = "tiêm" if is_insulin else "uống"
     action_btn = ""
-    if confirm_url:
+    if safe_confirm_url:
         action_btn = f"""
         <div style="text-align: center; margin: 26px 0 10px 0;">
-          <a href="{confirm_url}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #0d9488 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 36px; border-radius: 14px; font-weight: 800; font-size: 17px; box-shadow: 0 4px 14px rgba(13,148,136,0.35);">
+          <a href="{safe_confirm_url}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #0d9488 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 36px; border-radius: 14px; font-weight: 800; font-size: 17px; box-shadow: 0 4px 14px rgba(13,148,136,0.35);">
             ✓ BẤM VÀO ĐÂY: TÔI ĐÃ {verb.upper()}
           </a>
         </div>
@@ -573,15 +593,15 @@ def make_reminder_html(
   <div class="card">
     <div class="header">
       <div class="title">🔔 NHẮC NHỞ DÙNG THUỐC</div>
-      <div class="badge">{slot_name}</div>
+      <div class="badge">{safe_slot_name}</div>
     </div>
-    <p>Xin chào <strong>{patient_name}</strong>,</p>
+    <p>Xin chào <strong>{safe_patient_name}</strong>,</p>
     <p>Đã đến thời gian {verb} thuốc đái tháo đường của bạn hôm nay:</p>
     
     <div class="drug-box">
-      <div class="drug-name">💊 {drug_name}</div>
-      <div class="drug-detail"><strong>Liều dùng:</strong> {dosage or 'Theo chỉ dẫn của bác sĩ'}</div>
-      {f'<div class="drug-detail"><strong>Hướng dẫn:</strong> {instruction}</div>' if instruction else ''}
+      <div class="drug-name">💊 {safe_drug_name}</div>
+      <div class="drug-detail"><strong>Liều dùng:</strong> {safe_dosage}</div>
+      {f'<div class="drug-detail"><strong>Hướng dẫn:</strong> {safe_instruction}</div>' if safe_instruction else ''}
       {f'<div class="drug-detail" style="color:#d97706; font-weight:600;">💉 Lưu ý: Đây là thuốc tiêm Insulin</div>' if is_insulin else ''}
     </div>
 

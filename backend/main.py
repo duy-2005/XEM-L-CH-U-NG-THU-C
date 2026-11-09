@@ -1,7 +1,9 @@
 """FastAPI - cầu nối bảo mật cho các tác vụ đặc quyền của ứng dụng ĐTĐ/ADR."""
+import html
 import logging
 import re
 import secrets
+import urllib.parse
 import uuid
 from collections import Counter
 from contextlib import asynccontextmanager
@@ -15,15 +17,31 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 import supa
-from auth import CurrentUser, current_user, require_admin
+from auth import CurrentUser, current_user, invalidate_auth_cache, require_admin
 from config import ROOT, get_settings, get_custom_slot_times, save_custom_slot_times
 
 log = logging.getLogger("app")
 VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
-limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
+
+
+def get_real_client_ip(request: Request) -> str:
+    """Lấy IP thực của người dùng sau lớp Reverse Proxy (Cloudflare / Render) để Rate Limit chính xác từng cá nhân."""
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip:
+        return cf_ip.strip()
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        first_ip = xff.split(",")[0].strip()
+        if first_ip:
+            return first_ip
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=get_real_client_ip, default_limits=["120/minute"])
 
 
 import asyncio
@@ -41,6 +59,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="ĐTĐ - Tuân thủ thuốc & ADR", lifespan=lifespan, docs_url=None, redoc_url=None)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -64,19 +83,32 @@ _BLOCKED_SCAN_PATTERNS = re.compile(
     r"(\.(env|git|sql|py|sh|pem|key|crt|yaml|yml|bak|swp|ini|cfg|conf|dockerfile|ds_store|aws)|procfile|docker-compose)",
     re.IGNORECASE,
 )
+_MAX_BODY_BYTES = 65536  # Giới hạn 64KB cho mỗi request JSON chống tấn công làm tràn RAM
 
 
 @app.middleware("http")
 async def security_guard_and_headers(request: Request, call_next):
     raw_path = request.url.path.lower()
-    # Chặn đứng tức thì mọi nỗ lực dò quét file nhạy cảm, file cấu hình, mã nguồn hoặc path traversal
+    # 1. Chặn đứng tức thì mọi nỗ lực dò quét file nhạy cảm, file cấu hình, mã nguồn hoặc path traversal
     if _BLOCKED_SCAN_PATTERNS.search(raw_path) or ".." in raw_path:
         log.warning(
             "Cảnh báo an ninh: Chặn request dò quét nhạy cảm: %s từ IP %s",
             request.url.path,
-            request.client.host if request.client else "unknown",
+            get_real_client_ip(request),
         )
         return JSONResponse({"detail": "Truy cập bị từ chối"}, status_code=status.HTTP_403_FORBIDDEN)
+
+    # 2. Chặn Payload quá lớn (chống tấn công gửi cục dữ liệu nhiều MB gây tràn RAM 512MB)
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > _MAX_BODY_BYTES:
+                return JSONResponse(
+                    {"detail": "Dữ liệu gửi lên vượt quá kích thước cho phép (tối đa 64KB)"},
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                )
+        except ValueError:
+            return JSONResponse({"detail": "Header Content-Length không hợp lệ"}, status_code=status.HTTP_400_BAD_REQUEST)
 
     resp = await call_next(request)
     resp.headers["Content-Security-Policy"] = CSP
@@ -110,14 +142,45 @@ class PatientCreate(BaseModel):
         return v.strip() if isinstance(v, str) else v
 
 
+_TRUSTED_PUSH_DOMAINS = (
+    ".googleapis.com",
+    ".google.com",
+    ".push.services.mozilla.com",
+    ".push.apple.com",
+    ".notify.windows.com",
+)
+
+
+def _validate_webpush_endpoint(v: str) -> str:
+    """Chặn SSRF: chỉ cho phép endpoint HTTPS từ các dịch vụ Web Push chính hãng (Google FCM, Mozilla, Apple, Microsoft)."""
+    v = v.strip()
+    parsed = urllib.parse.urlparse(v)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError("Endpoint thông báo đẩy bắt buộc dùng giao thức HTTPS")
+    host = parsed.hostname.lower()
+    if not any(host.endswith(domain) for domain in _TRUSTED_PUSH_DOMAINS):
+        raise ValueError("Tên miền dịch vụ thông báo đẩy không nằm trong danh sách tin cậy")
+    return v
+
+
 class PushSubscriptionIn(BaseModel):
-    endpoint: str = Field(min_length=10, max_length=1000)
-    p256dh: str = Field(min_length=10, max_length=500)
-    auth: str = Field(min_length=10, max_length=500)
+    endpoint: str = Field(min_length=16, max_length=1000)
+    p256dh: str = Field(min_length=10, max_length=256, pattern=r"^[A-Za-z0-9+/=_-]+$")
+    auth: str = Field(min_length=10, max_length=256, pattern=r"^[A-Za-z0-9+/=_-]+$")
+
+    @field_validator("endpoint")
+    @classmethod
+    def check_endpoint(cls, v: str) -> str:
+        return _validate_webpush_endpoint(v)
 
 
 class PushUnsubscribeIn(BaseModel):
-    endpoint: str = Field(min_length=10, max_length=1000)
+    endpoint: str = Field(min_length=16, max_length=1000)
+
+    @field_validator("endpoint")
+    @classmethod
+    def check_endpoint(cls, v: str) -> str:
+        return _validate_webpush_endpoint(v)
 
 
 class PatientAdrCreate(BaseModel):
@@ -132,7 +195,7 @@ class PatientBloodSugarCreate(BaseModel):
 
 
 class PatientTestEmailRequest(BaseModel):
-    email: str | None = None
+    email: EmailStr | None = None
 
 
 
@@ -265,6 +328,10 @@ async def patient_missed_history(
     _: CurrentUser = Depends(require_admin),
 ):
     """Lấy danh sách các lần bỏ lỡ thuốc của 1 bệnh nhân cụ thể theo ngày."""
+    try:
+        uuid.UUID(patient_id)
+    except ValueError:
+        raise HTTPException(422, "ID bệnh nhân không hợp lệ")
     days = max(1, min(days, 365))
     since = (datetime.now(VN_TZ) - timedelta(days=days)).date().isoformat()
     rows = await supa.rest_get(
@@ -428,20 +495,33 @@ async def update_reminder_settings(body: UpdateReminderSettingsReq, _: CurrentUs
     return {"ok": True, "slot_times": new_slots}
 
 
+async def _upsert_owned_push_subscription(user_id: str, body: PushSubscriptionIn) -> None:
+    """Đảm bảo 1 endpoint thông báo đẩy không bị chiếm đoạt bởi user khác trước khi lưu."""
+    existing = await supa.rest_get(
+        "push_subscriptions",
+        {"endpoint": f"eq.{body.endpoint}", "select": "user_id"},
+    )
+    if existing and existing[0].get("user_id") != user_id:
+        # Xóa bản ghi cũ trên thiết bị dùng chung trước khi gắn cho tài khoản mới
+        await supa.rest_delete("push_subscriptions", {"endpoint": f"eq.{body.endpoint}"})
+    await supa.rest_upsert(
+        "push_subscriptions",
+        {
+            "user_id": user_id,
+            "endpoint": body.endpoint,
+            "p256dh": body.p256dh,
+            "auth": body.auth,
+        },
+        on_conflict="endpoint",
+    )
+
+
 @app.post("/api/admin/push-subscription")
-async def save_push_subscription(body: PushSubscriptionIn, admin: CurrentUser = Depends(require_admin)):
+@limiter.limit("20/minute")
+async def save_push_subscription(request: Request, body: PushSubscriptionIn, admin: CurrentUser = Depends(require_admin)):
     """Lưu Web Push subscription của thiết bị Bác sĩ vào cơ sở dữ liệu."""
     try:
-        await supa.rest_upsert(
-            "push_subscriptions",
-            {
-                "user_id": admin.id,
-                "endpoint": body.endpoint,
-                "p256dh": body.p256dh,
-                "auth": body.auth,
-            },
-            on_conflict="endpoint",
-        )
+        await _upsert_owned_push_subscription(admin.id, body)
         return {"ok": True, "message": "Đã lưu đăng ký thông báo đẩy thành công"}
     except Exception as e:
         log.error("Lỗi lưu push subscription: %s", e)
@@ -449,19 +529,11 @@ async def save_push_subscription(body: PushSubscriptionIn, admin: CurrentUser = 
 
 
 @app.post("/api/patient/push-subscription")
-async def save_patient_push_subscription(body: PushSubscriptionIn, user: CurrentUser = Depends(current_user)):
+@limiter.limit("20/minute")
+async def save_patient_push_subscription(request: Request, body: PushSubscriptionIn, user: CurrentUser = Depends(current_user)):
     """Lưu Web Push subscription của thiết bị Bệnh nhân để nhận chuông báo giờ uống thuốc."""
     try:
-        await supa.rest_upsert(
-            "push_subscriptions",
-            {
-                "user_id": user.id,
-                "endpoint": body.endpoint,
-                "p256dh": body.p256dh,
-                "auth": body.auth,
-            },
-            on_conflict="endpoint",
-        )
+        await _upsert_owned_push_subscription(user.id, body)
         return {"ok": True, "message": "Đã lưu chuông báo nhắc thuốc trên máy thành công"}
     except Exception as e:
         log.error("Lỗi lưu patient push subscription: %s", e)
@@ -469,7 +541,8 @@ async def save_patient_push_subscription(body: PushSubscriptionIn, user: Current
 
 
 @app.post("/api/push-subscription/unsubscribe")
-async def unsubscribe_push(body: PushUnsubscribeIn, user: CurrentUser = Depends(current_user)):
+@limiter.limit("20/minute")
+async def unsubscribe_push(request: Request, body: PushUnsubscribeIn, user: CurrentUser = Depends(current_user)):
     """Hủy đăng ký thông báo đẩy của thiết bị (chỉ chủ sở hữu thiết bị mới được gỡ)."""
     try:
         await supa.rest_delete("push_subscriptions", {"endpoint": f"eq.{body.endpoint}", "user_id": f"eq.{user.id}"})
@@ -480,7 +553,8 @@ async def unsubscribe_push(body: PushUnsubscribeIn, user: CurrentUser = Depends(
 
 
 @app.post("/api/test-push")
-async def test_push_notification(user: CurrentUser = Depends(current_user)):
+@limiter.limit("5/minute")
+async def test_push_notification(request: Request, user: CurrentUser = Depends(current_user)):
     """Gửi Web Push thông báo thử nghiệm tới thiết bị của tài khoản đang đăng nhập."""
     subs = await supa.rest_get(
         "push_subscriptions",
@@ -541,6 +615,7 @@ async def request_admin_approval(
             "approval_requested_at": now_iso,
         },
     )
+    invalidate_auth_cache(user.id)
 
     # Sinh token ký số HMAC (có hạn 48 giờ)
     token = notifier.generate_admin_approval_token(user.id, user.email)
@@ -568,7 +643,9 @@ async def request_admin_approval(
 
 
 @app.get("/api/admin/approve-account", response_class=HTMLResponse)
+@limiter.limit("10/minute")
 async def approve_account_via_email(
+    request: Request,
     token: str,
     background_tasks: BackgroundTasks,
 ):
@@ -615,11 +692,13 @@ async def approve_account_via_email(
             "must_change_password": False,
         },
     )
+    invalidate_auth_cache(uid)
 
     # Gửi email chúc mừng tới người dùng
     if email:
         background_tasks.add_task(notifier.send_admin_approval_success_email, user_name, email)
 
+    safe_email = html.escape(email or "")
     return HTMLResponse(
         content=f"""<!DOCTYPE html>
 <html>
@@ -629,7 +708,7 @@ async def approve_account_via_email(
     <div style="font-size:48px;margin-bottom:12px;">🎉</div>
     <h1 style="color:#065f46;font-size:22px;margin:0 0 12px 0;">Phê Duyệt Thành Công!</h1>
     <p style="color:#334155;font-size:15px;line-height:1.6;">
-      Tài khoản <strong>{email}</strong> đã được cấp quyền Quản trị viên (Bác sĩ/Dược sĩ).
+      Tài khoản <strong>{safe_email}</strong> đã được cấp quyền Quản trị viên (Bác sĩ/Dược sĩ).
     </p>
     <a href="/admin.html" style="display:inline-block;margin-top:20px;background:#0d9488;color:white;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:700;">
       Vào Trang Quản Trị →
@@ -657,12 +736,19 @@ async def list_pending_approvals(admin: CurrentUser = Depends(require_admin)):
 
 
 @app.post("/api/admin/approve-user")
+@limiter.limit("20/minute")
 async def approve_or_reject_user(
+    request: Request,
     body: ApproveUserPayload,
     background_tasks: BackgroundTasks,
     admin: CurrentUser = Depends(require_admin),
 ):
     """Phê duyệt hoặc từ chối yêu cầu cấp quyền Admin trực tiếp từ Dashboard."""
+    try:
+        uuid.UUID(body.user_id)
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "ID tài khoản không hợp lệ")
+
     try:
         rows = await supa.rest_get("profiles", {"id": f"eq.{body.user_id}", "select": "id,full_name,email"})
         if not rows:
@@ -683,6 +769,7 @@ async def approve_or_reject_user(
                     "must_change_password": False,
                 },
             )
+            invalidate_auth_cache(body.user_id)
             try:
                 await supa.admin_update_user(body.user_id, {"user_metadata": {"role": "admin"}})
             except Exception:
@@ -704,17 +791,18 @@ async def approve_or_reject_user(
                     "approval_status": "rejected",
                 },
             )
+            invalidate_auth_cache(body.user_id)
             return {"status": "ok", "message": "Đã từ chối yêu cầu."}
     except HTTPException:
         raise
     except Exception as e:
         log.exception("Lỗi khi phê duyệt/từ chối tài khoản %s: %s", body.user_id, e)
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"Lỗi phê duyệt tài khoản: {str(e)}")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Lỗi phê duyệt tài khoản")
 
 
 # ---------------------------------------------------------------- patient endpoints (gửi ADR & Đường huyết)
 @app.post("/api/patient/adr", status_code=201)
-@limiter.limit("20/minute")
+@limiter.limit("5/minute")
 async def submit_patient_adr(
     request: Request,
     body: PatientAdrCreate,
@@ -759,7 +847,7 @@ async def submit_patient_adr(
 
 
 @app.post("/api/patient/blood-sugar", status_code=201)
-@limiter.limit("30/minute")
+@limiter.limit("15/minute")
 async def submit_patient_blood_sugar(
     request: Request,
     body: PatientBloodSugarCreate,
@@ -808,7 +896,7 @@ async def submit_patient_blood_sugar(
 
 
 @app.post("/api/patient/test-email")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def test_patient_reminder_email(
     request: Request,
     body: PatientTestEmailRequest | None = None,
@@ -817,12 +905,8 @@ async def test_patient_reminder_email(
     """Gửi email nhắc thuốc thử nghiệm tới địa chỉ email của bệnh nhân."""
     s = get_settings()
 
-    # Tự động lấy app_url thực tế từ request header nếu đang truy cập qua domain công khai
-    effective_app_url = s.app_url
-    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
-    host = request.headers.get("x-forwarded-host", request.url.netloc)
-    if host and not any(h in host.lower() for h in ("localhost", "127.0.0.1", "0.0.0.0")):
-        effective_app_url = f"{proto}://{host}".rstrip("/")
+    # Luôn dùng APP_URL đã cấu hình trên máy chủ (chống tấn công Host Header Poisoning / Phishing)
+    effective_app_url = s.app_url.rstrip("/")
 
     prof_rows = await supa.rest_get(
         "profiles",
@@ -833,7 +917,7 @@ async def test_patient_reminder_email(
     prof = prof_rows[0]
     p_name = prof.get("full_name") or prof.get("patient_code") or "Bệnh nhân"
 
-    target_email = (body.email.strip() if body and body.email else "").strip()
+    target_email = (str(body.email).strip() if body and body.email else "").strip()
     if not target_email:
         target_email = (prof.get("email") or "").strip()
 
@@ -997,6 +1081,11 @@ async def confirm_dose_from_email(request: Request, p: str, rx: str, d: str, s: 
     except Exception:
         pass
 
+    safe_drug_name = html.escape(drug_name or "Thuốc")
+    safe_slot_name = html.escape(slot_name or "")
+    safe_date = html.escape(d or "")
+    safe_app_url = html.escape(cfg.app_url or "", quote=True)
+
     return HTMLResponse(
         f"""
         <!DOCTYPE html>
@@ -1055,11 +1144,11 @@ async def confirm_dose_from_email(request: Request, p: str, rx: str, d: str, s: 
             <p>Tuyệt vời! Hệ thống đã ghi nhận bạn đã dùng thuốc đúng giờ. Bác sĩ phụ trách đã nhận được dữ liệu tuân thủ của bạn.</p>
             
             <div class="pill">
-              <strong>💊 {drug_name}</strong>
-              <span>Khung giờ: {slot_name} · Ngày: {d}</span>
+              <strong>💊 {safe_drug_name}</strong>
+              <span>Khung giờ: {safe_slot_name} · Ngày: {safe_date}</span>
             </div>
 
-            <a href="{cfg.app_url}/" class="btn">Mở ứng dụng theo dõi</a>
+            <a href="{safe_app_url}/" class="btn">Mở ứng dụng theo dõi</a>
           </div>
         </body>
         </html>

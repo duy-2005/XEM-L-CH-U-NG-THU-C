@@ -134,3 +134,15 @@
   - **Mô tả:** Tự động lọc sạch các câu lệnh `console.log` / `console.debug` khi ứng dụng chạy trên tên miền công khai, ngăn chặn việc đọc lén luồng xử lý nội bộ qua F12 Console.
 - [x] **Task 50: Kiểm tra cú pháp toàn hệ thống và bump PWA cache lên v21**
   - **Mô tả:** Chạy `py_compile` và `node -c` xác thực 100% không lỗi; bump phiên bản PWA cache lên `dtd-shell-v21`.
+
+## Giai đoạn 18: Phòng Thủ Chuyên Sâu Chống Đánh Cắp Dữ Liệu & Chống Tấn Công Gửi Nhiều Request / DoS
+- [x] **Task 51: Tiền kiểm định dạng JWT cục bộ & Bộ nhớ đệm TTL 15 giây (`backend/auth.py`)**
+  - **Mô tả:** Bổ sung biểu thức chính quy `_JWT_RE` loại bỏ ngay lập tức các Bearer token giả mạo trong 0.01ms trước khi gọi mạng sang Supabase; thêm `_auth_cache` (TTL 15s, tối đa 256 phiên) chống làm nghẽn kết nối outbound khi có đợt tấn công gửi dồn dập nhiều request.
+- [x] **Task 52: Nhận diện IP thực qua Reverse Proxy & Kích hoạt `SlowAPIMiddleware` (`backend/main.py`)**
+  - **Mô tả:** Xây dựng hàm `get_real_client_ip()` đọc `CF-Connecting-IP` và `X-Forwarded-For` để tách biệt hạn mức từng IP thực tế trên Render/Cloudflare; kích hoạt `SlowAPIMiddleware` và siết chặt ngưỡng Rate Limit cho các API nhạy cảm (`/api/patient/test-email`: 3/phút, `/api/test-push`: 5/phút, `/api/patient/adr`: 5/phút).
+- [x] **Task 53: Giới hạn kích thước Payload tối đa 64KB (`backend/main.py`)**
+  - **Mô tả:** Chặn đứng các request có `Content-Length > 65536` (trả về HTTP `413 Content Too Large`) ngay tại tầng Middleware để bảo vệ 512MB RAM của máy chủ Render Free.
+- [x] **Task 54: Chống SSRF, Chiếm Đoạt Endpoint Web Push & Host Header Poisoning (`backend/main.py`)**
+  - **Mô tả:** Kiểm tra chặt chẽ `PushSubscriptionIn.endpoint` chỉ chấp nhận giao thức `https://` từ các máy chủ Web Push chính hãng (Google FCM, Mozilla, Apple, Windows); kiểm tra chủ sở hữu trước khi upsert; loại bỏ việc đọc `X-Forwarded-Host` trong `/api/patient/test-email`.
+- [x] **Task 55: Lọc sạch HTML Injection / XSS trong toàn bộ Email và HTMLResponse (`backend/notifier.py` & `backend/main.py`)**
+  - **Mô tả:** Bọc `html.escape()` cho tất cả các trường dữ liệu động (`patient_name`, `details`, `drug_name`, `dosage`, `instruction`, `applicant_email`, v.v.) trước khi kết xuất HTML gửi cho Bác sĩ và Bệnh nhân.
